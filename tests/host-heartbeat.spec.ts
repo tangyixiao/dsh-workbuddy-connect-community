@@ -56,7 +56,7 @@ describe('host heartbeat', () => {
     // After write: present and well-formed.
     const heartbeat = await readHostHeartbeat()
     expect(heartbeat).toBeDefined()
-    expect(heartbeat!.package).toBe('dsh-workbuddy-connect')
+    expect(heartbeat!.package).toBe('dsh-workbuddy-connect-community')
     expect(heartbeat!.pid).toBe(process.pid)
     expect(typeof heartbeat!.registeredAt).toBe('number')
     expect(heartbeat!.pluginVersion).toBe(WORKBUDDY_CONNECT_VERSION)
@@ -99,7 +99,7 @@ describe('host heartbeat', () => {
     // A heartbeat registered *before* this process began (the recycled-PID case).
     const recycled = {
       version: 1 as const,
-      package: 'dsh-workbuddy-connect' as const,
+      package: 'dsh-workbuddy-connect-community' as const,
       pluginVersion: '0.0.0-test',
       registeredAt: (startAtMs as number) - 60_000, // 1 min before this process started
       pid: process.pid,
@@ -126,7 +126,7 @@ describe('host heartbeat', () => {
     const { writeFile } = await import('node:fs/promises')
     await writeFile(
       workbuddyHostHeartbeatPath(),
-      JSON.stringify({ version: 99, package: 'dsh-workbuddy-connect', registeredAt: Date.now(), pid: process.pid }),
+      JSON.stringify({ version: 99, package: 'dsh-workbuddy-connect-community', registeredAt: Date.now(), pid: process.pid }),
       'utf8',
     )
     expect(await readHostHeartbeat()).toBeUndefined()

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Standalone status/diagnostics CLI for the dsh-workbuddy-connect bundle. */
+/** Standalone status/diagnostics CLI for the dsh-workbuddy-connect-community bundle. */
 
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -27,7 +27,7 @@ function safeMessage(error: unknown): string {
 
 function printHelp(): void {
   process.stdout.write([
-    'Usage: dsh-workbuddy-connect <doctor|status|logout> [--provider <id>] [--json]',
+    'Usage: dsh-workbuddy-connect-community <doctor|status|logout> [--provider <id>] [--json]',
     '',
     '  doctor   secret-free sign-in and environment diagnostics',
     '  status   sign-in state, remaining WorkBuddy credit, and host-bundle health',
@@ -95,7 +95,7 @@ async function doctor(jsonOutput: boolean, variant: WorkBuddyVariant): Promise<n
   const driftWarning = versionDriftWarning(drift)
   const report = {
     schemaVersion: JSON_SCHEMA_VERSION,
-    package: 'dsh-workbuddy-connect',
+    package: 'dsh-workbuddy-connect-community',
     version: WORKBUDDY_CONNECT_VERSION,
     node: process.version,
     provider: variant.id,
@@ -161,7 +161,7 @@ async function status(jsonOutput: boolean, variant: WorkBuddyVariant): Promise<n
   const hostState = hostAlive ? 'running' : heartbeat !== undefined ? 'stale' : 'not-started'
   if (authStatus.state !== 'signed-in') {
     if (jsonOutput) {
-      printJson({ schemaVersion: JSON_SCHEMA_VERSION, package: 'dsh-workbuddy-connect', version: WORKBUDDY_CONNECT_VERSION, provider: variant.id, status: 'signed-out', hostBundle: hostState })
+      printJson({ schemaVersion: JSON_SCHEMA_VERSION, package: 'dsh-workbuddy-connect-community', version: WORKBUDDY_CONNECT_VERSION, provider: variant.id, status: 'signed-out', hostBundle: hostState })
     } else {
       process.stdout.write(`${variant.displayName} Connect: signed out\nHost bundle: ${hostState}\n`)
     }
@@ -184,7 +184,7 @@ async function status(jsonOutput: boolean, variant: WorkBuddyVariant): Promise<n
   if (jsonOutput) {
     printJson({
       schemaVersion: JSON_SCHEMA_VERSION,
-      package: 'dsh-workbuddy-connect',
+      package: 'dsh-workbuddy-connect-community',
       version: WORKBUDDY_CONNECT_VERSION,
       provider: variant.id,
       status: 'signed-in',
@@ -225,7 +225,7 @@ export async function run(argv: readonly string[]): Promise<number> {
   const [rawAction, ...flags] = argv
   const actions: readonly Action[] = ['doctor', 'logout', 'status']
   if (!actions.includes(rawAction as Action)) {
-    process.stderr.write(`dsh-workbuddy-connect: expected doctor, logout, or status; got ${JSON.stringify(rawAction)}\n`)
+    process.stderr.write(`dsh-workbuddy-connect-community: expected doctor, logout, or status; got ${JSON.stringify(rawAction)}\n`)
     return 1
   }
   const action = rawAction as Action
@@ -251,13 +251,13 @@ export async function run(argv: readonly string[]): Promise<number> {
   const variant = providerId === undefined ? CN_VARIANT : variantFor(providerId)
   if (variant === undefined) {
     process.stderr.write(
-      `dsh-workbuddy-connect: unknown provider ${JSON.stringify(providerId)}; expected one of ${WORKBUDDY_VARIANTS.map(v => v.id).join(', ')}\n`,
+      `dsh-workbuddy-connect-community: unknown provider ${JSON.stringify(providerId)}; expected one of ${WORKBUDDY_VARIANTS.map(v => v.id).join(', ')}\n`,
     )
     return 1
   }
   const unknown = rest.filter(flag => flag !== '--json')
   if (unknown.length > 0 || (jsonOutput && action === 'logout')) {
-    process.stderr.write(`dsh-workbuddy-connect: invalid options for ${action}: ${flags.join(' ')}\n`)
+    process.stderr.write(`dsh-workbuddy-connect-community: invalid options for ${action}: ${flags.join(' ')}\n`)
     return 1
   }
   try {
@@ -279,7 +279,7 @@ export async function run(argv: readonly string[]): Promise<number> {
       }
     }
   } catch (error: unknown) {
-    process.stderr.write(`dsh-workbuddy-connect: ${action} failed: ${safeMessage(error)}\n`)
+    process.stderr.write(`dsh-workbuddy-connect-community: ${action} failed: ${safeMessage(error)}\n`)
     return 1
   }
 }

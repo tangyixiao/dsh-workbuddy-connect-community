@@ -86,7 +86,7 @@ interface WorkBuddyShellOverlayOwnerProps {
 }
 
 /** Stable browser-plugin name. */
-export const name = 'dsh-workbuddy-connect-client'
+export const name = 'dsh-workbuddy-connect-community-client'
 
 /**
  * The bundle's package name, which is also this half's configuration key.
@@ -94,7 +94,7 @@ export const name = 'dsh-workbuddy-connect-client'
  * The Plugins page dispatches `plugins.bundle.config` by the bundle's package
  * name, so the key has to spell exactly what the profile installs.
  */
-export const BUNDLE_NAME = 'dsh-workbuddy-connect'
+export const BUNDLE_NAME = 'dsh-workbuddy-connect-community'
 
 /**
  * Client services required by this browser half.
@@ -118,7 +118,7 @@ export const BUNDLE_NAME = 'dsh-workbuddy-connect'
 export const inject = ['slots', 'locale', 'remote', 'remote.session']
 
 /** Prefix every guarded client contribution's degradation logs with this. */
-const CLIENT_CONTRIBUTION_FAILED = '[dsh-workbuddy-connect] client contribution failed to load (host provider unaffected):'
+const CLIENT_CONTRIBUTION_FAILED = '[dsh-workbuddy-connect-community] client contribution failed to load (host provider unaffected):'
 
 /** Disposer handed back when a deferred registration degraded: nothing to undo. */
 const NOOP_DISPOSER = (): void => {}
@@ -164,7 +164,7 @@ function guardClientContribution<T>(label: string, fn: () => T): T | undefined {
  * guard, one failing registration never takes the others with it (the old
  * settings cards survive a broken Plugins-page seam, and the probe control
  * survives either). The host provider keeps working throughout: the
- * `workbuddy` model channel is unaffected, and `dsh-workbuddy-connect status`
+ * `workbuddy` model channel is unaffected, and `dsh-workbuddy-connect-community status`
  * reports host health via the heartbeat file.
  *
  * The tests import this function directly (`tests/client-fallback.spec.ts`),
@@ -177,7 +177,7 @@ export function apply(ctx: ClientContext): void {
   // degrades, `t` still binds and renders the key names as fallback copy.
   const namespace = 'settings.workbuddy'
   guardClientContribution('settings copy', () => {
-    ctx.effect(() => ctx.locale.register(namespace, { zh, en }), 'dsh-workbuddy-connect: settings copy')
+    ctx.effect(() => ctx.locale.register(namespace, { zh, en }), 'dsh-workbuddy-connect-community: settings copy')
   })
   const t = ctx.locale.bind(namespace) as WorkBuddyPluginCardInjected['t']
   // The update reminder: one store for the whole bundle (the check compares
@@ -189,7 +189,7 @@ export function apply(ctx: ClientContext): void {
     ctx.effect(() => {
       void updater.refresh()
       return () => { updater.dispose() }
-    }, 'dsh-workbuddy-connect: update checker')
+    }, 'dsh-workbuddy-connect-community: update checker')
   })
   // The floating seat. Hosts whose shell declares no `shell.overlay` seat
   // never fire this callback — the reminder is simply absent there, the same

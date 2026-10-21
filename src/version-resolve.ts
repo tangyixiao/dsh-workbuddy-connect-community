@@ -13,7 +13,7 @@
  * would call a stale build current — so the split is surfaced, not resolved
  * by preferring one side.
  *
- * @module dsh-workbuddy-connect/version-resolve
+ * @module dsh-workbuddy-connect-community/version-resolve
  */
 
 import { readFileSync } from 'node:fs'
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url'
 import { WORKBUDDY_CONNECT_VERSION } from './version.ts'
 
 /** The package name to look for while walking up from the module. */
-const PACKAGE_NAME = 'dsh-workbuddy-connect'
+const PACKAGE_NAME = 'dsh-workbuddy-connect-community'
 
 /**
  * Read `package.json` walking up from one module URL.

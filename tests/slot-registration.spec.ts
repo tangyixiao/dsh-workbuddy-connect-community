@@ -29,7 +29,7 @@ import { CARD_VARIANTS } from '../src/client/WorkBuddyPluginCard.tsx'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /** The key the bundle registers under; the 0.1.6+ page looks the entry up by name. */
-const BUNDLE_KEY = 'dsh-workbuddy-connect'
+const BUNDLE_KEY = 'dsh-workbuddy-connect-community'
 
 /** Minimal component stand-in; the registry only stores the reference. */
 const Component = (): null => null

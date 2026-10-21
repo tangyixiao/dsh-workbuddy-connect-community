@@ -565,6 +565,7 @@ export function prepareChatBody(source: string): string {
   const obj = body as Record<string, unknown>
   obj['stream'] = true
   normalizeDeveloperRole(obj)
+  rewriteCommunitySystemProse(obj)
   normalizeToolChoice(obj)
   return JSON.stringify(obj)
 }
@@ -578,6 +579,75 @@ function normalizeDeveloperRole(obj: Record<string, unknown>): void {
     const wrapped = message as Record<string, unknown>
     if (wrapped['role'] === 'developer') wrapped['role'] = 'system'
   }
+}
+
+/** Replace the measured CN-rejected product name in system prose only. */
+function rewriteCommunitySystemProse(obj: Record<string, unknown>): void {
+  const messages = obj['messages']
+  if (!Array.isArray(messages)) return
+  for (const message of messages) {
+    if (!isObject(message) || message['role'] !== 'system') continue
+    const content = message['content']
+    if (typeof content === 'string') {
+      message['content'] = rewritePlainSystemProse(content)
+      continue
+    }
+    if (!Array.isArray(content)) continue
+    const fenceState: CommunityFenceState = { fence: undefined }
+    for (const block of content) {
+      if (isObject(block) && block['type'] === 'text' && typeof block['text'] === 'string') {
+        block['text'] = rewritePlainSystemProse(block['text'], fenceState)
+      }
+    }
+  }
+}
+
+interface CommunityFenceState {
+  fence: { character: '`' | '~'; length: number } | undefined
+}
+
+const MEASURED_DSH_SYSTEM_PREFIX = 'You are interacting with the user through the DeepSeek Harness Web GUI whose URL the runtime context names.'
+
+/**
+ * Rewrite only unambiguous plain prose. A path, filename, quote, or code marker
+ * makes its whole line opaque; fenced blocks stay opaque through their closing
+ * fence. This is intentionally conservative because system content can also
+ * carry literal workspace paths and code examples.
+ */
+function rewritePlainSystemProse(text: string, state: CommunityFenceState = { fence: undefined }): string {
+  const parts = text.split(/(\r\n|\n|\r)/u)
+  const productName = /(?<![\\/\w-])DeepSeek Harness(?![\\/\w-])/gu
+  for (let index = 0; index < parts.length; index += 2) {
+    const line = parts[index] ?? ''
+    const fenceMatch = /^\s*(`{3,}|~{3,})/u.exec(line)
+    if (state.fence !== undefined) {
+      const marker = fenceMatch?.[1]
+      if (
+        fenceMatch !== null
+        && marker !== undefined
+        && marker[0] === state.fence.character
+        && marker.length >= state.fence.length
+        && line.slice(fenceMatch[0].length).trim() === ''
+      ) state.fence = undefined
+      continue
+    }
+    if (fenceMatch !== null) {
+      const marker = fenceMatch[1]
+      if (marker !== undefined) {
+        state.fence = { character: marker[0] as '`' | '~', length: marker.length }
+      }
+      continue
+    }
+    if (line.startsWith(MEASURED_DSH_SYSTEM_PREFIX)) {
+      parts[index] = MEASURED_DSH_SYSTEM_PREFIX.replace('DeepSeek Harness', 'local agent runtime') + line.slice(MEASURED_DSH_SYSTEM_PREFIX.length)
+      continue
+    }
+    // Paths and quoted/code spans can include spaces, so leave the complete
+    // line as written instead of trying to find safe substrings within it.
+    if (/[\\/`"']/u.test(line) || /\.[\p{L}\p{N}_-]{1,10}(?=$|[\s"'`),;:!?.])/u.test(line)) continue
+    parts[index] = line.replace(productName, 'the local agent runtime')
+  }
+  return parts.join('')
 }
 
 /** Rewrite OpenAI `tool_choice` spellings into the upstream's string form. */
@@ -1562,6 +1632,7 @@ export function prepareCnChatBody(source: string): string {
   }
   if (!isObject(body)) return source
   dropUnsupportedEffort(body)
+  rewriteCommunitySystemProse(body)
   return JSON.stringify(body)
 }
 

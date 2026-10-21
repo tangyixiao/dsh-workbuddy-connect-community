@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { workBuddyUpdateHandler } from '../src/update-route.ts'
 import type { WorkBuddyUpdateRouteOptions } from '../src/update-route.ts'
 import { WORKBUDDY_UPDATE_PATH } from '../src/status-paths.ts'
-import { WORKBUDDY_UPDATE_NPM_METADATA_URL, WORKBUDDY_UPDATE_RELEASES_API_URL } from '../src/update.ts'
+import { WORKBUDDY_UPDATE_RELEASES_API_URL } from '../src/update.ts'
 
 /** The update route answers loopback GETs only and fails closed upstream. */
 
@@ -16,14 +16,18 @@ afterEach(async () => {
 
 async function startServer(manifestVersion?: string): Promise<number> {
   const server = createServer(workBuddyUpdateHandler({
-    currentVersion: '0.6.3',
+    currentVersion: '0.1.0',
     ...manifestVersion === undefined ? {} : { manifestVersion },
     fetchImpl: async (input: string) => {
-      if (input === WORKBUDDY_UPDATE_NPM_METADATA_URL) {
-        return new Response(JSON.stringify({ 'dist-tags': { latest: '0.6.3' } }), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
       if (input === WORKBUDDY_UPDATE_RELEASES_API_URL) {
-        return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
+        return new Response(JSON.stringify([{
+          tag_name: 'v0.1.0',
+          draft: false,
+          prerelease: false,
+          name: 'v0.1.0',
+          body: 'Initial community release',
+          published_at: '2026-10-21T00:00:00Z',
+        }]), { status: 200, headers: { 'content-type': 'application/json' } })
       }
       throw new Error(`unexpected url ${String(input)}`)
     },
@@ -56,7 +60,7 @@ describe('the update route', () => {
     const port = await startServer()
     const { status, body } = await requestOnce(port, { headers: { host: '127.0.0.1:PORT'.replace('PORT', String(port)) } })
     expect(status).toBe(200)
-    expect(JSON.parse(body)).toEqual({ status: 'up-to-date', currentVersion: '0.6.3', latestVersion: '0.6.3' })
+    expect(JSON.parse(body)).toEqual({ status: 'up-to-date', currentVersion: '0.1.0', latestVersion: '0.1.0' })
   })
 
   it('forwards the manifest version when the loaded build is behind it', async () => {
@@ -65,17 +69,17 @@ describe('the update route', () => {
     expect(status).toBe(200)
     expect(JSON.parse(body)).toEqual({
       status: 'up-to-date',
-      currentVersion: '0.6.3',
-      latestVersion: '0.6.3',
+      currentVersion: '0.1.0',
+      latestVersion: '0.1.0',
       manifestVersion: '0.7.0',
     })
   })
 
   it('omits the manifest version when it matches the build', async () => {
-    const port = await startServer('0.6.3')
+    const port = await startServer('0.1.0')
     const { status, body } = await requestOnce(port, { headers: { host: `127.0.0.1:${String(port)}` } })
     expect(status).toBe(200)
-    expect(JSON.parse(body)).toEqual({ status: 'up-to-date', currentVersion: '0.6.3', latestVersion: '0.6.3' })
+    expect(JSON.parse(body)).toEqual({ status: 'up-to-date', currentVersion: '0.1.0', latestVersion: '0.1.0' })
   })
 
   it('rejects non-GET methods', async () => {
@@ -98,7 +102,7 @@ describe('the update route', () => {
 
   it('answers a well-formed unavailable document when the upstream throws past the checker', async () => {
     const server = createServer(workBuddyUpdateHandler({
-      currentVersion: '0.6.3',
+      currentVersion: '0.1.0',
       // A fetch seam that rejects in a way even the checker's own catch
       // cannot shape: the route must still answer JSON, never an empty 500.
       fetchImpl: (() => { throw new Error('sync explosion') }) as unknown as NonNullable<WorkBuddyUpdateRouteOptions['fetchImpl']>,
@@ -108,6 +112,6 @@ describe('the update route', () => {
     const port = (server.address() as AddressInfo).port
     const { status, body } = await requestOnce(port, { headers: { host: `127.0.0.1:${String(port)}` } })
     expect(status).toBe(200)
-    expect(JSON.parse(body)).toEqual({ status: 'unavailable', currentVersion: '0.6.3', reason: 'registry-unavailable' })
+    expect(JSON.parse(body)).toEqual({ status: 'unavailable', currentVersion: '0.1.0', reason: 'registry-unavailable' })
   })
 })

@@ -1,9 +1,9 @@
 {
-  "name": "dsh-workbuddy-connect",
-  "displayName": "DSH WorkBuddy Connect",
-  "description": "将 WorkBuddy 桌面 App 包含的模型自动接入 DeepSeek Harness — bring WorkBuddy desktop app models into DeepSeek Harness with zero configuration.",
-  "version": "0.7.9",
-  "author": "corrinehu",
+  "name": "dsh-workbuddy-connect-community",
+  "displayName": "DSH WorkBuddy Connect Community",
+  "description": "Community-maintained WorkBuddy / WorkBuddy AI provider for DeepSeek Harness.",
+  "version": "0.1.0",
+  "author": "Tang Yixiao (maintained fork of Corrine Hu's dsh-workbuddy-connect)",
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
@@ -18,7 +18,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "bin": {
-    "dsh-workbuddy-connect": "lib/bin.js"
+    "dsh-workbuddy-connect-community": "lib/bin.js"
   },
   "scripts": {
     "prepack": "npm run build",
@@ -47,10 +47,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/corrinehu/dsh-workbuddy-connect.git"
+    "url": "git+https://github.com/tangyixiao/dsh-workbuddy-connect-community.git"
   },
-  "homepage": "https://github.com/corrinehu/dsh-workbuddy-connect#readme",
-  "bugs": "https://github.com/corrinehu/dsh-workbuddy-connect/issues",
+  "homepage": "https://github.com/tangyixiao/dsh-workbuddy-connect-community#readme",
+  "bugs": "https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues",
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

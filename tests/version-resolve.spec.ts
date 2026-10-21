@@ -27,7 +27,7 @@ function fakePackage(manifest: unknown | undefined, dirs: string[] = ['lib']): s
 
 describe('resolvePackageVersion', () => {
   it('reads the manifest of the copy the module was loaded from', () => {
-    const url = fakePackage({ name: 'dsh-workbuddy-connect', version: '9.9.9' })
+    const url = fakePackage({ name: 'dsh-workbuddy-connect-community', version: '9.9.9' })
     expect(resolvePackageVersion(url)).toBe('9.9.9')
   })
 

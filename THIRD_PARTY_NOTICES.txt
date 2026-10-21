@@ -1,3 +1,11 @@
+This repository is a community-maintained fork of Corrine Hu's
+dsh-workbuddy-connect project. Fork provenance: upstream commit
+c0ed88e3712d3bb2e2deff5fddec1181e6222973.
+
+The original MIT copyright notice for Corrine Hu is retained in LICENSE.
+Community fork maintenance and contributions: Tang Yixiao. The fork does not
+claim sole authorship of the inherited project.
+
 @deepseek-ai/dsh-atomic-write 0.2.1-rc.2
 Bundled from https://github.com/deepseek-ai/deepseek-harness/tree/main/packages/util/atomic-write
 

@@ -104,7 +104,7 @@ export const en = {
   // The prompt is a request to the user's Agent, not a promise by this plugin:
   // it must not name a specific env var (the right fix depends on how DSH was
   // launched) and must not claim a search happened.
-  assistantPrompt: 'DSH\'s dsh-workbuddy-connect cannot use my {appName}: {failureSummary}. Please check the actual installation location and any existing path configuration, help the plugin use it correctly, and verify recovery. If the DSH launch environment must be changed or DSH restarted, give me clear steps; do not only set an environment variable temporarily in the current shell.',
+  assistantPrompt: 'DSH\'s dsh-workbuddy-connect-community cannot use my {appName}: {failureSummary}. Please check the actual installation location and any existing path configuration, help the plugin use it correctly, and verify recovery. If the DSH launch environment must be changed or DSH restarted, give me clear steps; do not only set an environment variable temporarily in the current shell.',
   // Per-code summaries. `unavailable*` says only that nothing is configured —
   // never that a search was performed, because on those paths none was.
   assistNotFound: 'no usable decryption program was found',
@@ -131,7 +131,7 @@ export const en = {
   openReleasePage: 'Open release page',
   checkingForUpdates: 'Checking…',
   updateCheckUnavailable: 'Update information is unavailable right now. Check again later.',
-  agentUpgradePrompt: 'Please open {repository}, check its latest version, and install or update the plugin "dsh-workbuddy-connect" in my current DSH profile following the project README (the install command differs by profile). After upgrading, fully quit and restart DSH.',
+  agentUpgradePrompt: 'Please open {repository}, check its latest version, and install or update the plugin "dsh-workbuddy-connect-community" in my current DSH profile following the project README (the install command differs by profile). After upgrading, fully quit and restart DSH.',
 } as const
 
 export type WorkBuddySettingsKey = keyof typeof en
@@ -237,7 +237,7 @@ export const zh: Record<WorkBuddySettingsKey, string> = {
   assistantAfter: 'Agent 处理完成后，回到这里重新检查；如果修改了 DSH 的启动环境，请先按指引重启 DSH。',
   assistantRecheck: '已处理，重新检查',
   assistantRechecking: '正在检查…',
-  assistantPrompt: 'DSH 的 dsh-workbuddy-connect 无法使用我的 {appName}：{failureSummary}。请帮我检查实际安装位置和已有路径配置，让插件能正确使用它，并验证恢复结果；如果需要修改 DSH 的启动环境或重启，请给我明确的操作步骤，不要只在当前 shell 临时设置环境变量。',
+  assistantPrompt: 'DSH 的 dsh-workbuddy-connect-community 无法使用我的 {appName}：{failureSummary}。请帮我检查实际安装位置和已有路径配置，让插件能正确使用它，并验证恢复结果；如果需要修改 DSH 的启动环境或重启，请给我明确的操作步骤，不要只在当前 shell 临时设置环境变量。',
   assistNotFound: '没有找到可用的解密程序',
   assistAmbiguous: '找到了多个 WorkBuddy 副本，无法安全自动选择',
   assistIncomplete: '自动定位未能完成',
@@ -262,5 +262,5 @@ export const zh: Record<WorkBuddySettingsKey, string> = {
   openReleasePage: '打开 Release 页面',
   checkingForUpdates: '检查中…',
   updateCheckUnavailable: '暂时无法获取更新信息，请稍后再试。',
-  agentUpgradePrompt: '请打开 {repository}，查看最新版本，并按项目 README 把插件 dsh-workbuddy-connect 安装或更新到我当前使用的 DSH profile（不同 profile 的安装命令不同）。升级完成后请完全退出并重启 DSH。',
+  agentUpgradePrompt: '请打开 {repository}，查看最新版本，并按项目 README 把插件 dsh-workbuddy-connect-community 安装或更新到我当前使用的 DSH profile（不同 profile 的安装命令不同）。升级完成后请完全退出并重启 DSH。',
 }
