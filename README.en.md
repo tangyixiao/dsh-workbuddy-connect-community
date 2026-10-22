@@ -18,6 +18,12 @@ dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect
 
 If the original plugin is installed, save its current version and configuration, then replace it through a DSH-supported method. The original and community plugins must not be enabled together: they use the same provider IDs and account login data. If replacement fails, remove the community package and restore the saved original. Do not delete WorkBuddy sign-in data or chat data. The first release is distributed through GitHub Releases; it is not published to npm.
 
+### DSH Desktop and ZCode coexistence
+
+The Electron application manages the `desktop` profile; the standalone `dsh` CLI refuses to modify it. In **Extensions → Plugin Management → Add Plugin**, enter the absolute path of the downloaded `.tgz`, or the Release download URL above when the network certificate chain is trusted. Keep the newly installed package disabled, turn off the original `dsh-workbuddy-connect` in the plugin list, and then enable the community package. Retaining the disabled original package and its configuration makes rollback easier.
+
+This flow was verified with hot loading on Windows Desktop. The community package can run alongside [`dsh-zcode-plan-bridge`](https://github.com/tangyixiao/dsh-zcode-plan-bridge) 0.4.0: it provides `workbuddy` / `workbuddy-ai` using desktop sign-in, while the ZCode plugin provides `zcode-cli` using the signed-in CLI account. The model picker can list all three providers. `doctor` and catalog checks establish local readiness; available account-plan quota must be confirmed by an actual request.
+
 ## Compatibility and limits
 
 The plugin reuses the desktop app's sign-in and service interfaces. Model catalogs, requests, and credit displays depend on the third-party service, which can change or become unavailable. Community maintenance does not mean authorization or endorsement by WorkBuddy, Tencent, or DeepSeek. Follow the applicable service terms.

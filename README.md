@@ -18,6 +18,12 @@ dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect
 
 如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。首版通过 GitHub Release 分发，暂不发布到 npm。
 
+### DSH Desktop 与 ZCode 共存
+
+Desktop 的 `desktop` profile 由 Electron 应用管理，独立 `dsh` CLI 会拒绝修改它。在 **扩展管理 → 插件管理 → 添加插件** 中输入已下载 `.tgz` 的绝对路径；网络证书受信任时，也可填写上面的 Release 下载地址。安装完成后先保持禁用，再在插件列表中停用原版 `dsh-workbuddy-connect`，最后启用社区版。保留已停用的旧包与配置可以便于回退。
+
+该流程已在 Windows Desktop 上通过热加载验证。它可以与 [`dsh-zcode-plan-bridge`](https://github.com/tangyixiao/dsh-zcode-plan-bridge) 0.4.0 同时启用：社区版提供 `workbuddy` / `workbuddy-ai` 并复用桌面登录，ZCode 插件提供 `zcode-cli` 并使用已登录的 CLI 账号。模型选择器可同时列出三个提供方。`doctor` 和模型目录检查反映本机准备状态；账号计划是否有可用额度，需要实际请求确认。
+
 ## 兼容性与限制
 
 插件直接复用 WorkBuddy 桌面应用的登录状态与服务接口，模型目录、请求和额度显示依赖第三方服务状态。服务接口可能变化或不可用；社区维护不意味着 WorkBuddy、腾讯或 DeepSeek 的授权或背书。请遵守相关服务条款。
