@@ -24,6 +24,20 @@ dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect
 
 本软件不包含账号凭据、用户会话或运行时数据。凭据只从本机应用或 DSH 自己保存的凭据副本读取。
 
+## 诊断与可分享报告
+
+运行 `dsh-workbuddy-connect-community doctor --share` 可生成可复制的 JSON 诊断报告；国际版使用 `dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai`。该报告只包含版本、运行时、平台、架构、provider、登录文件是否存在及格式、登录状态和已知原因码、主机心跳状态、内置模型数，以及安全的应用版本来源标记。报告不含本地路径、账号标识、进程号、时间戳或自由文本错误。`readiness.authentication` 的 `credential-found` 仅表示凭据可被本地解析，不验证访问令牌是否仍有效，也不尝试刷新；`readiness.liveInference` 固定为 `not-tested`，命令不会发送模型请求。若本地诊断读取失败，命令仍会输出仅含固定 `diagnostic-unavailable` 错误码的 JSON。报告不代表服务可用。
+
+普通 `doctor` 输出仍用于本机排查；已知原因码是稳定枚举，可用于判断下一步。`no-credential` 表示没有可用登录凭据；`encrypted-credential-unreadable` 表示加密凭据无法解锁；`electron-binary-not-found`、`electron-binary-ambiguous`、`electron-binary-unavailable`、`electron-path-invalid` 和 `electron-discovery-incomplete` 分别说明辅助程序未找到、候选不唯一、平台未提供自动发现、指定路径无效或发现流程未完成；`credential-region-mismatch` 表示凭据属于另一个 WorkBuddy 产品。未知原因码不会进入共享报告。
+
+| 平台 | 本项目验证情况 |
+| --- | --- |
+| Windows | 此前已完成本机接受验证 |
+| macOS | 未进行本机实时验证 |
+| Linux | 未进行本机实时验证 |
+
+跨平台测试中的 Windows、macOS、Linux 输入是模拟夹具，不代表这些系统上的运行接受验证。诊断结果也不保证 WorkBuddy 服务可用。
+
 ## 来源与许可
 
 本仓库保留原项目 Git 历史，维护分叉基于上游提交 [`c0ed88e3712d3bb2e2deff5fddec1181e6222973`](https://github.com/corrinehu/dsh-workbuddy-connect/commit/c0ed88e3712d3bb2e2deff5fddec1181e6222973)。原作者 Corrine Hu 的 MIT 版权声明保留；分叉维护者为 Tang Yixiao。详见 [LICENSE](./LICENSE) 与 [第三方声明](./THIRD_PARTY_NOTICES.txt)。
