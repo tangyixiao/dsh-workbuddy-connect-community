@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { run } from '../src/bin.ts'
+import { WorkBuddyCredentialStore } from '../src/auth.ts'
 import { shareableDoctorReport } from '../src/shareable-doctor.ts'
 
 const FIXTURE_PARENT = join(process.cwd(), '.cache', 'task-5-tests')
@@ -69,7 +70,7 @@ describe('doctor --share', () => {
     expect(report['runtime']).toBe(process.version)
     expect(report['platform']).toBe(process.platform)
     expect(report['architecture']).toBe(process.arch)
-    expect(report['readiness']).toMatchObject({ authentication: 'ready', host: 'running', liveInference: 'not-tested' })
+    expect(report['readiness']).toMatchObject({ authentication: 'credential-found', host: 'running', liveInference: 'not-tested' })
     expect(JSON.stringify(report)).not.toContain(root)
     for (const marker of [PATH_MARKER, TOKEN_MARKER, 'refresh-secret-marker', 'uid-secret-marker', 'nickname-secret-marker', domain, 'ignored-private-version']) {
       expect(stdout).not.toContain(marker)
@@ -100,6 +101,44 @@ describe('doctor --share', () => {
     await rm(join(root, 'dsh-home', '.workbuddy-community-host-heartbeat.json'))
     const absent = await capture(['doctor', '--share'])
     expect(JSON.parse(absent.stdout)['readiness']).toMatchObject({ host: 'not-started' })
+  })
+
+  it('returns fixed JSON and suppresses filesystem error details when shared diagnostics fail', async () => {
+    root = await fixture()
+    vi.stubEnv('WORKBUDDY_AUTH_FILE', join(root, 'unreadable-auth'))
+    const failure = new Error(`EACCES: denied at ${PATH_MARKER} with ${TOKEN_MARKER}`)
+    const desktopFilePresent = vi.spyOn(WorkBuddyCredentialStore.prototype, 'desktopFilePresent').mockRejectedValue(failure)
+    try {
+      const { code, stdout, stderr } = await capture(['doctor', '--share'])
+      const report = JSON.parse(stdout) as Record<string, unknown>
+      expect(code).toBe(1)
+      expect(report).toMatchObject({ errorCode: 'diagnostic-unavailable', provider: 'workbuddy' })
+      expect(report['readiness']).toMatchObject({ authentication: 'unknown', host: 'unknown', liveInference: 'not-tested' })
+      expect(stderr).not.toContain(PATH_MARKER)
+      expect(stderr).not.toContain(TOKEN_MARKER)
+      expect(stderr).toBe('')
+      expect(stdout).not.toContain(PATH_MARKER)
+      expect(stdout).not.toContain(TOKEN_MARKER)
+      expect(stdout).not.toContain('EACCES')
+    } finally {
+      desktopFilePresent.mockRestore()
+    }
+  })
+
+  it('does not label an expired, unrefreshable credential as ready', async () => {
+    root = await fixture()
+    const authPath = join(root, 'expired-auth.json')
+    await writeFile(authPath, JSON.stringify({
+      auth: { accessToken: 'expired-access', refreshToken: '', expiresAt: Date.now() - 60_000, domain: 'copilot.tencent.com' },
+      account: { uid: 'synthetic-user' },
+    }))
+    vi.stubEnv('WORKBUDDY_AUTH_FILE', authPath)
+    const { code, stdout } = await capture(['doctor', '--share'])
+    const report = JSON.parse(stdout) as Record<string, unknown>
+    expect(code).toBe(0)
+    expect(report['signIn']).toBe('signed-in')
+    expect(report['readiness']).toMatchObject({ authentication: 'credential-found', liveInference: 'not-tested' })
+    expect(stdout).not.toContain(String(Date.now() - 60_000))
   })
 
   it.each(['status', 'logout'])('rejects %s --share before action', async action => {

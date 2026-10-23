@@ -17,6 +17,14 @@ export interface ShareableDoctorInput {
   appVersionSource?: WorkBuddyAppVersionSource
 }
 
+export interface ShareableDoctorFailureInput {
+  version: string
+  runtime: string
+  platform: string
+  architecture: string
+  provider: string
+}
+
 /** A copy-safe report built only from explicitly selected, low-risk fields. */
 export function shareableDoctorReport(input: ShareableDoctorInput): Record<string, unknown> {
   const reasonCode: WorkBuddySignedOutReasonCode | undefined = isWorkBuddySignedOutReasonCode(input.reasonCode)
@@ -30,8 +38,8 @@ export function shareableDoctorReport(input: ShareableDoctorInput): Record<strin
   const desktopFormat: DesktopAuthFormat = ['absent', 'plaintext', 'encrypted', 'unrecognized'].includes(input.desktopAuthFile.format)
     ? input.desktopAuthFile.format
     : 'unrecognized'
-  const authReadiness = input.signIn === 'signed-in' && input.desktopAuthFile.present
-    ? 'ready'
+  const authReadiness = input.signIn === 'signed-in'
+    ? 'credential-found'
     : reasonCode !== undefined || !input.desktopAuthFile.present ? 'needs-attention' : 'unknown'
   return {
     schemaVersion: 1,
@@ -53,6 +61,25 @@ export function shareableDoctorReport(input: ShareableDoctorInput): Record<strin
     readiness: {
       authentication: authReadiness,
       host: input.hostHeartbeat.processAlive ? 'running' : input.hostHeartbeat.present ? 'stale' : 'not-started',
+      liveInference: 'not-tested',
+    },
+  }
+}
+
+/** Safe fallback when doctor cannot finish reading local diagnostics. */
+export function shareableDoctorFailureReport(input: ShareableDoctorFailureInput): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    package: 'dsh-workbuddy-connect-community',
+    version: input.version,
+    runtime: input.runtime,
+    platform: input.platform,
+    architecture: input.architecture,
+    provider: input.provider,
+    errorCode: 'diagnostic-unavailable',
+    readiness: {
+      authentication: 'unknown',
+      host: 'unknown',
       liveInference: 'not-tested',
     },
   }

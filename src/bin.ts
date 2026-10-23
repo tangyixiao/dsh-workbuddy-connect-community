@@ -12,7 +12,7 @@ import { isHeartbeatProcessAlive, readHostHeartbeat, workbuddyHostHeartbeatPath 
 import { atRestKeyProviderFor } from './desktop-credential-protection.ts'
 import { CN_VARIANT, variantFor, WORKBUDDY_VARIANTS, type WorkBuddyVariant } from './variants.ts'
 import { resolveAppVersion } from './app-version.ts'
-import { shareableDoctorReport } from './shareable-doctor.ts'
+import { shareableDoctorFailureReport, shareableDoctorReport } from './shareable-doctor.ts'
 
 type Action = 'doctor' | 'logout' | 'status'
 
@@ -297,6 +297,16 @@ export async function run(argv: readonly string[]): Promise<number> {
       }
     }
   } catch (error: unknown) {
+    if (action === 'doctor' && share) {
+      printJson(shareableDoctorFailureReport({
+        version: WORKBUDDY_CONNECT_VERSION,
+        runtime: process.version,
+        platform: process.platform,
+        architecture: process.arch,
+        provider: variant.id,
+      }))
+      return 1
+    }
     process.stderr.write(`dsh-workbuddy-connect-community: ${action} failed: ${safeMessage(error)}\n`)
     return 1
   }
