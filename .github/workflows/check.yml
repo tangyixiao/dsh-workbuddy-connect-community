@@ -14,6 +14,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -24,4 +25,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run check
+      - if: runner.os == 'Linux'
+        run: |
+          pnpm run typecheck
+          timeout --signal=TERM --kill-after=15s 8m pnpm exec vitest run --reporter=verbose
+          pnpm run build
+      - if: runner.os != 'Linux'
+        run: pnpm run check

@@ -134,10 +134,15 @@ describe('resolveAppVersion', () => {
   })
 
   it('still answers when the cache cannot be written', async () => {
-    // A read-only home must not take the catalog down with it.
+    const root = await mkdtemp(join(tmpdir(), 'wb-appversion-blocked-'))
+    CLEANUP.push(() => rm(root, { recursive: true, force: true }))
+    const blockedParent = join(root, 'not-a-directory')
+    await writeFile(blockedParent, 'blocked')
+    // A regular file cannot be a parent directory on any supported platform.
+    // A failed cache write must not take the catalog down with it.
     await expect(resolveAppVersion({
       installed: async () => ({ version: '5.5.2', bundle: '/x' }),
-      path: '/proc/definitely-not-writable/version.json',
+      path: join(blockedParent, 'version.json'),
     })).resolves.toMatchObject({ version: '5.5.2', source: 'installed' })
   })
 
