@@ -24,6 +24,20 @@ The plugin reuses the desktop app's sign-in and service interfaces. Model catalo
 
 The package contains no account credentials, user sessions, or runtime data. Credentials are read from the local app or a credential copy stored by DSH itself.
 
+## Diagnostics and shareable reports
+
+Run `dsh-workbuddy-connect-community doctor --share` to print copyable JSON. For the international app, use `dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai`. The report is limited to package/runtime/platform/architecture versions, provider, auth-file presence and format, sign-in state and a known reason code, host heartbeat state, fallback model count, and a safe app-version source label. It omits local paths, account identifiers, process IDs, timestamps, and free-text errors. `readiness.liveInference` is always `not-tested`: the command sends no model request and does not establish service availability.
+
+Use ordinary `doctor` output for local troubleshooting. Known reason codes are stable diagnostic categories: `no-credential` means there is no usable sign-in; `encrypted-credential-unreadable` means an encrypted credential could not be opened; `electron-binary-not-found`, `electron-binary-ambiguous`, `electron-binary-unavailable`, `electron-path-invalid`, and `electron-discovery-incomplete` describe a missing or ambiguous helper, unsupported automatic discovery, an invalid configured path, or an incomplete discovery attempt; `credential-region-mismatch` means the credential belongs to the other WorkBuddy product. Unknown reason codes are omitted from the shareable report.
+
+| Platform | Validation evidence |
+| --- | --- |
+| Windows | Previously accepted in a local run |
+| macOS | No live local validation |
+| Linux | No live local validation |
+
+Windows, macOS, and Linux inputs in cross-platform tests are simulated fixtures; they do not establish runtime acceptance on those systems. Diagnostics do not guarantee WorkBuddy service availability.
+
 ## Provenance and license
 
 This repository preserves the original Git history and is based on upstream commit [`c0ed88e3712d3bb2e2deff5fddec1181e6222973`](https://github.com/corrinehu/dsh-workbuddy-connect/commit/c0ed88e3712d3bb2e2deff5fddec1181e6222973). Corrine Hu's original MIT copyright notice remains in place; Tang Yixiao maintains this fork. See [LICENSE](./LICENSE) and [third-party notices](./THIRD_PARTY_NOTICES.txt).
