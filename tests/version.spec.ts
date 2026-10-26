@@ -71,7 +71,7 @@ describe('peer manifest pins the verified DSH cores', () => {
    * means editing this list after a real run, not letting a caret do it.
    * Since 0.7.7 the list was 0.2.1-rc.1 alone: 0.2.0-rc.2 cannot be
    * smoke-tested anymore alongside it, and an untested arm is support
-   * nobody verified. This candidate targets 0.2.1-rc.2 and bundles the
+   * nobody verified. This candidate declares rc.2 and rc.3 and bundles the
    * official atomic-write helper. Local checks do not replace Desktop
    * acceptance testing.
    *
@@ -99,7 +99,7 @@ describe('peer manifest pins the verified DSH cores', () => {
       readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
     ) as { peerDependencies: Record<string, string> }
     for (const name of DSH_SERVICE_PEERS) {
-      expect(pkg.peerDependencies[name], `${name} missing from peerDependencies`).toBe('0.2.1-rc.2')
+      expect(pkg.peerDependencies[name], `${name} missing from peerDependencies`).toBe('0.2.1-rc.2 || 0.2.1-rc.3')
     }
   })
 
@@ -109,7 +109,7 @@ describe('peer manifest pins the verified DSH cores', () => {
     const pkg = JSON.parse(
       readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
     ) as { peerDependencies: Record<string, string>, devDependencies: Record<string, string> }
-    expect(pkg.devDependencies['@deepseek-ai/dsh-atomic-write']).toBe('0.2.1-rc.2')
+    expect(pkg.devDependencies['@deepseek-ai/dsh-atomic-write']).toBe('0.2.1-rc.3')
     expect(pkg.peerDependencies['@deepseek-ai/dsh-atomic-write']).toBeUndefined()
   })
 
