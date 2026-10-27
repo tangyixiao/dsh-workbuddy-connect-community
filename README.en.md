@@ -2,13 +2,15 @@
 
 [中文](./README.md) | English
 
-A community-maintained fork by Tang Yixiao of Corrine Hu's MIT-licensed [`dsh-workbuddy-connect`](https://github.com/corrinehu/dsh-workbuddy-connect). It targets DeepSeek Harness 0.2.1-rc.2 and reuses a locally signed-in WorkBuddy (China) or WorkBuddy AI (international) desktop app. The existing `workbuddy` and `workbuddy-ai` provider IDs, account data, and settings are retained.
+A community-maintained fork by Tang Yixiao of Corrine Hu's MIT-licensed [`dsh-workbuddy-connect`](https://github.com/corrinehu/dsh-workbuddy-connect). It targets the DeepSeek Harness 0.2.1 line and reuses a locally signed-in WorkBuddy (China) or WorkBuddy AI (international) desktop app. The existing `workbuddy` and `workbuddy-ai` provider IDs, account data, and settings are retained.
 
 The community fork also applies a narrow, exact product-name transform to plain system/developer prose and one verified fixed DSH explanatory sentence. User, assistant, and tool messages, tool definitions, image blocks, and text-block metadata remain unchanged. Fenced code blocks are skipped. Ordinary lines containing path separators, quotes, code markers, or recognizable filename extensions are also skipped. The sole additional rule matches the verified complete DSH sentence at the start of a line and changes its product name while preserving the rest of that line. Unmarked plain-word filenames cannot reliably be distinguished from prose; mark these literals with backticks. This local transform does not imply official support or guarantee upstream availability.
 
 ## Install or replace
 
-Supported DSH version: **0.2.1-rc.2**. Windows is the only platform verified locally so far. macOS and Linux have not been live-verified for this fork.
+Declared DSH range: **`0.2.1-rc.2 || 0.2.1-rc.3`**, covering only rc.2 and rc.3. Later RCs, stable 0.2.1 and subsequent releases need separate qualification. Version 0.1.1 updates development dependencies to rc.3 and fixes the exact rc.2 peers that made 0.1.0 fail the host compatibility check. Version qualification and live account/model availability are separate checks. Windows is the only platform verified locally so far. macOS and Linux have not been live-verified for this fork.
+
+**DSH Desktop:** use Extensions → Plugin Management → Add Plugin and select the downloaded `.tgz` to install or update it. The desktop app manages its profile; the CLI example below is for a standalone Web profile. Enable only one of the original and community packages to avoid duplicate provider registration.
 
 Download the package from [GitHub Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/latest) and install it through a DSH-supported plugin method:
 
