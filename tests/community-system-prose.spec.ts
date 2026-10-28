@@ -103,6 +103,13 @@ describe('community system prose compatibility', () => {
     )
   })
 
+  it('rewrites the first-party identity when the same line contains protected paths and quotes', () => {
+    const prefix = 'You are an AI agent powered by DeepSeek Harness.'
+    const suffix = ' Preserve "DeepSeek Harness.md" and C:\\Apps\\DeepSeek Harness\\src verbatim.'
+    const prepared = prepareChatBody(JSON.stringify({ messages: [{ role: 'system', content: prefix + suffix }] }))
+    expect(messagesOf(prepared)[0]?.['content']).toBe('You are an AI agent powered by the local agent runtime.' + suffix)
+  })
+
   it('does not rewrite the measured DSH sentence when quoted, path-prefixed, or fenced', () => {
     const prefix = 'You are interacting with the user through the DeepSeek Harness Web GUI whose URL the runtime context names.'
     const content = [

@@ -266,7 +266,18 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
               'conversation id missing': 'conversation-id-missing',
             }
             const reason = code === 11128 && typeof response.msg === 'string' ? knownReasons[response.msg.trim().toLowerCase()] : undefined
-            businessCode = ` [upstream code ${code}${reason === undefined ? '' : `; reason ${reason}`}]`
+            let systemPhrase = ''
+            if (reason === 'unapproved-channel') {
+              const request = JSON.parse(prepared) as { messages?: Array<{ role?: unknown; content?: unknown }> }
+              const containsPhrase = (Array.isArray(request.messages) ? request.messages : []).some(message => {
+                if (message?.role !== 'system') return false
+                const content = message.content
+                if (typeof content === 'string') return /DeepSeek Harness/iu.test(content)
+                return Array.isArray(content) && content.some(block => typeof block?.text === 'string' && /DeepSeek Harness/iu.test(block.text))
+              })
+              systemPhrase = `; system-phrase-present ${containsPhrase ? 'yes' : 'no'}`
+            }
+            businessCode = ` [upstream code ${code}${reason === undefined ? '' : `; reason ${reason}`}${systemPhrase}]`
           }
         } catch { /* non-JSON errors have no safe business code */ }
       }

@@ -607,6 +607,7 @@ interface CommunityFenceState {
 }
 
 const MEASURED_DSH_SYSTEM_PREFIX = 'You are interacting with the user through the DeepSeek Harness Web GUI whose URL the runtime context names.'
+const DSH_IDENTITY_PREFIX = 'You are an AI agent powered by DeepSeek Harness.'
 
 /**
  * Rewrite only unambiguous plain prose. A path, filename, quote, or code marker
@@ -640,6 +641,12 @@ function rewritePlainSystemProse(text: string, state: CommunityFenceState = { fe
     }
     if (line.startsWith(MEASURED_DSH_SYSTEM_PREFIX)) {
       parts[index] = MEASURED_DSH_SYSTEM_PREFIX.replace('DeepSeek Harness', 'local agent runtime') + line.slice(MEASURED_DSH_SYSTEM_PREFIX.length)
+      continue
+    }
+    // The exact first-party opener is prose even if a later part of the same
+    // line contains a path, quote, or code literal that must remain unchanged.
+    if (line.startsWith(DSH_IDENTITY_PREFIX)) {
+      parts[index] = DSH_IDENTITY_PREFIX.replace('DeepSeek Harness', 'the local agent runtime') + line.slice(DSH_IDENTITY_PREFIX.length)
       continue
     }
     // Paths and quoted/code spans can include spaces, so leave the complete
