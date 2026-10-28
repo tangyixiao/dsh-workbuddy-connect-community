@@ -795,7 +795,7 @@ describe('chatStream wire effort by region (issue #49)', () => {
       messages: [{ role: 'system', content: 'You are a helpful assistant.' }, { role: 'user', content: 'hi' }],
     }
     if (effort !== undefined) body['reasoning_effort'] = effort
-    const result = await new WorkBuddyUpstreamClient().chatStream(credential, JSON.stringify(body))
+    const result = await new WorkBuddyUpstreamClient({ resolveChatIdentity: async () => ({ clientVersion: '5.5.6' }) }).chatStream(credential, JSON.stringify(body))
     expect(result.ok).toBe(true)
     return calls[0]?.body === undefined ? undefined : (calls[0].body as Record<string, unknown>)['reasoning_effort']
   }
@@ -816,7 +816,7 @@ describe('chatStream wire effort by region (issue #49)', () => {
       captured.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
       return fakeResponse('')
     }))
-    const result = await new WorkBuddyUpstreamClient().chatStream(CREDENTIAL, JSON.stringify({
+    const result = await new WorkBuddyUpstreamClient({ resolveChatIdentity: async () => ({ clientVersion: '5.5.6' }) }).chatStream(CREDENTIAL, JSON.stringify({
       model: 'probe-model',
       messages: [{ role: 'system', content: 'You are a helpful assistant.' }, { role: 'user', content: 'hi' }],
       reasoning_effort: 'off',
