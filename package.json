@@ -2,7 +2,7 @@
   "name": "dsh-workbuddy-connect-community",
   "displayName": "DSH WorkBuddy Connect Community",
   "description": "Community-maintained WorkBuddy / WorkBuddy AI provider for DeepSeek Harness.",
-  "version": "0.1.1",
+  "version": "0.1.6",
   "author": "Tang Yixiao (maintained fork of Corrine Hu's dsh-workbuddy-connect)",
   "keywords": [
     "dsh-plugin",

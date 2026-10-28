@@ -489,16 +489,48 @@ describe('error text policy against the host AUTH heuristic (PR #58)', () => {
    */
   const HOST_AUTH_HEURISTIC = /\b(?:401|403)\b/u
 
-  async function shimErrorBody(upstream: () => WorkBuddyChatResult): Promise<string> {
+  async function shimErrorBody(upstream: () => WorkBuddyChatResult, messages: unknown[] = []): Promise<string> {
     const harness = await startShim(upstream)
     const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', authorization: `Bearer ${harness.shim.token()}` },
-      body: JSON.stringify({ model: 'hy3', messages: [] }),
+      body: JSON.stringify({ model: 'hy3', messages }),
     })
     expect(response.ok).toBe(false)
     return await response.text()
   }
+
+  it('shows a numeric upstream business code without leaking other response fields', async () => {
+    const text = await shimErrorBody(() => ({ ok: false, status: 400, kind: 'client', message: JSON.stringify({ code: 11128, msg: 'internal detail', token: 'private-synthetic-token', displayMsg: { zh: '请求被拦截，请重新发送' } }) }))
+    const body = JSON.parse(text) as { error: { message: string } }
+    expect(body.error.message).toContain('11128')
+    expect(body.error.message).toContain('请求被拦截')
+    expect(body.error.message).not.toContain('private-synthetic-token')
+    expect(body.error.message).not.toContain('internal detail')
+  })
+
+  it('distinguishes the known 11128 channel and missing-system categories', async () => {
+    for (const [msg, expected] of [
+      ['Illegal API invocation from an unapproved channel', 'unapproved-channel'],
+      ['first message is not system prompt', 'first-system-missing'],
+      ['conversation id missing', 'conversation-id-missing'],
+    ]) {
+      const text = await shimErrorBody(() => ({ ok: false, status: 400, kind: 'client', message: JSON.stringify({ code: 11128, msg, displayMsg: { zh: '请求被拦截，请重新发送' } }) }))
+      const body = JSON.parse(text) as { error: { message: string } }
+      expect(body.error.message).toContain(expected)
+    }
+  })
+
+  it('reports only safe presence of remaining system phrase occurrences for channel blocks', async () => {
+    const text = await shimErrorBody(() => ({ ok: false, status: 400, kind: 'client', message: JSON.stringify({ code: 11128, msg: 'Illegal API invocation from an unapproved channel', displayMsg: { zh: '请求被拦截，请重新发送' } }) }), [
+      { role: 'system', content: 'Private path C:\\DeepSeek Harness\\folder' },
+      { role: 'user', content: 'private user text DeepSeek Harness' },
+    ])
+    const body = JSON.parse(text) as { error: { message: string } }
+    expect(body.error.message).toContain('system-phrase-present yes')
+    expect(body.error.message).not.toContain('Private path')
+    expect(body.error.message).not.toContain('private user text')
+  })
 
   it('shows the display message of a review rejection without a bare 403', async () => {
     const text = await shimErrorBody(() => ({

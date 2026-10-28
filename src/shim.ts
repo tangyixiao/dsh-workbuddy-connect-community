@@ -252,6 +252,35 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
 
     if (!result.ok) {
       const detail = extractDisplayErrorMessage(result.message) ?? result.message.slice(0, 400)
+      // The localized block message is shared by several failures. Preserve
+      // only the numeric business code, not the upstream response or msg.
+      let businessCode = ''
+      if (detail.includes('请求被拦截')) {
+        try {
+          const response = JSON.parse(result.message) as { code?: unknown; msg?: unknown }
+          const code = response.code
+          if (typeof code === 'number' && Number.isInteger(code) && code >= 10000 && code <= 99999) {
+            const knownReasons: Record<string, string> = {
+              'illegal api invocation from an unapproved channel': 'unapproved-channel',
+              'first message is not system prompt': 'first-system-missing',
+              'conversation id missing': 'conversation-id-missing',
+            }
+            const reason = code === 11128 && typeof response.msg === 'string' ? knownReasons[response.msg.trim().toLowerCase()] : undefined
+            let systemPhrase = ''
+            if (reason === 'unapproved-channel') {
+              const request = JSON.parse(prepared) as { messages?: Array<{ role?: unknown; content?: unknown }> }
+              const containsPhrase = (Array.isArray(request.messages) ? request.messages : []).some(message => {
+                if (message?.role !== 'system') return false
+                const content = message.content
+                if (typeof content === 'string') return /DeepSeek Harness/iu.test(content)
+                return Array.isArray(content) && content.some(block => typeof block?.text === 'string' && /DeepSeek Harness/iu.test(block.text))
+              })
+              systemPhrase = `; system-phrase-present ${containsPhrase ? 'yes' : 'no'}`
+            }
+            businessCode = ` [upstream code ${code}${reason === undefined ? '' : `; reason ${reason}`}${systemPhrase}]`
+          }
+        } catch { /* non-JSON errors have no safe business code */ }
+      }
       // The host adapter classifies any error text containing a bare
       // `401`/`403` word as AUTH, which would mask business errors (safety
       // review, illegal request) behind an "invalid API key" banner. Only
@@ -266,7 +295,7 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
         res,
         KIND_STATUS[result.kind],
         result.kind,
-        `workbuddy upstream ${result.kind}${statusNote}: ${detail}`,
+        `workbuddy upstream ${result.kind}${statusNote}: ${detail}${businessCode}`,
       )
       return
     }

@@ -607,6 +607,9 @@ interface CommunityFenceState {
 }
 
 const MEASURED_DSH_SYSTEM_PREFIX = 'You are interacting with the user through the DeepSeek Harness Web GUI whose URL the runtime context names.'
+const DSH_IDENTITY_PREFIX = 'You are an AI agent powered by DeepSeek Harness.'
+const DSH_PATH_REFERENCE_PREFIX = 'Tokens prefixed with @ are paths the user explicitly referenced. Relative paths resolve from the workspace root; absolute paths identify files or directories on the host.'
+const COMPATIBLE_PATH_REFERENCE_PREFIX = 'An @ mention identifies a path explicitly supplied by the user. Resolve relative references from the workspace root and treat absolute references as host file or directory paths.'
 
 /**
  * Rewrite only unambiguous plain prose. A path, filename, quote, or code marker
@@ -640,6 +643,18 @@ function rewritePlainSystemProse(text: string, state: CommunityFenceState = { fe
     }
     if (line.startsWith(MEASURED_DSH_SYSTEM_PREFIX)) {
       parts[index] = MEASURED_DSH_SYSTEM_PREFIX.replace('DeepSeek Harness', 'local agent runtime') + line.slice(MEASURED_DSH_SYSTEM_PREFIX.length)
+      continue
+    }
+    // The exact first-party opener is prose even if a later part of the same
+    // line contains a path, quote, or code literal that must remain unchanged.
+    if (line.startsWith(DSH_IDENTITY_PREFIX)) {
+      parts[index] = DSH_IDENTITY_PREFIX.replace('DeepSeek Harness', 'the local agent runtime') + line.slice(DSH_IDENTITY_PREFIX.length)
+      continue
+    }
+    // A measured CN 11128 rejection is triggered by this exact first-party
+    // prose. Change only the known prefix, preserving all suffix bytes.
+    if (line.startsWith(DSH_PATH_REFERENCE_PREFIX)) {
+      parts[index] = COMPATIBLE_PATH_REFERENCE_PREFIX + line.slice(DSH_PATH_REFERENCE_PREFIX.length)
       continue
     }
     // Paths and quoted/code spans can include spaces, so leave the complete

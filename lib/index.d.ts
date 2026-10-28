@@ -166,6 +166,9 @@ interface ResolveChatIdentityOptions {
   cliVersion?: (bundle: string) => Promise<string | undefined>;
   /** CN saved-cache path; defaults to `$DSH_HOME/.workbuddy-app-version.json`. */
   cnSavedPath?: string;
+  /** Test seams for Windows installation discovery. */
+  platform?: NodeJS.Platform;
+  windowsElectronPath?: () => Promise<string>;
 }
 /**
  * Resolve the chat identity for one region: installed App → region's saved
@@ -938,6 +941,8 @@ declare class WorkBuddyAtRestKeyProvider {
    * any resolution has happened).
    */
   helperPath(): string | undefined;
+  /** Resolve the verified installation path without starting the key helper. */
+  installationPath(): Promise<string>;
   /**
    * A protector key matching one of the requested envelope key ids. The first
    * id the cache answers wins; otherwise one spawn resolves the current key,

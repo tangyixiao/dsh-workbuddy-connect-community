@@ -18,9 +18,9 @@
  * @module dsh-workbuddy-connect/client-identity
  */
 
-import { readFile } from 'node:fs/promises'
+import { open, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import {
@@ -31,6 +31,8 @@ import {
   type AppVersionInfo,
 } from './app-version.ts'
 import type { WorkBuddyRegion } from './upstream.ts'
+import { atRestKeyProviderFor } from './desktop-credential-protection.ts'
+import { CN_VARIANT } from './variants.ts'
 
 /**
  * Compiled-in CN fallback for the `WorkBuddy/<v>` tokens.
@@ -50,6 +52,36 @@ export const FALLBACK_CN_APP_VERSION = '5.5.6'
  * the way the per-variant catalog files are.
  */
 export const CN_APP_VERSION_FILENAME = '.workbuddy-app-version.json'
+
+/** Read only the root package metadata, with bounded allocations and offsets. */
+export async function readWindowsAppVersion(bundle: string): Promise<string | undefined> {
+  let file: Awaited<ReturnType<typeof open>> | undefined
+  try {
+    file = await open(join(bundle, 'resources', 'app.asar'), 'r')
+    const size = (await file.stat()).size
+    const prefix = Buffer.alloc(16)
+    if ((await file.read(prefix, 0, 16, 0)).bytesRead !== 16) return undefined
+    const pickleSize = prefix.readUInt32LE(4)
+    const headerSize = prefix.readUInt32LE(12)
+    if (prefix.readUInt32LE(0) !== 4 || headerSize > 8 * 1024 * 1024 || pickleSize < 8 || headerSize > pickleSize - 8 || 8 + pickleSize > size) return undefined
+    const header = Buffer.alloc(headerSize)
+    if ((await file.read(header, 0, headerSize, 16)).bytesRead !== headerSize) return undefined
+    const archive = JSON.parse(header.toString('utf8')) as { files?: Record<string, { offset?: string; size?: number; unpacked?: boolean }> }
+    const entry = archive.files?.['package.json']
+    if (!entry || entry.unpacked || !/^\d+$/.test(entry.offset ?? '') || !Number.isSafeInteger(entry.size) || entry.size! < 1 || entry.size! > 1024 * 1024) return undefined
+    const offset = Number(entry.offset)
+    const position = 8 + pickleSize + offset
+    if (!Number.isSafeInteger(position) || position < 0 || position + entry.size! > size) return undefined
+    const data = Buffer.alloc(entry.size!)
+    if ((await file.read(data, 0, data.length, position)).bytesRead !== data.length) return undefined
+    const pkg = JSON.parse(data.toString('utf8')) as { name?: unknown; version?: unknown }
+    return pkg.name === '@genie/workbuddy-desktop' && validAppVersion(pkg.version) ? pkg.version : undefined
+  } catch {
+    return undefined
+  } finally {
+    await file?.close()
+  }
+}
 
 /** The resolved identity a chat request presents as. */
 export interface ChatIdentity {
@@ -94,7 +126,11 @@ export async function readCliVersion(bundle: string): Promise<string | undefined
   try {
     document = JSON.parse(await readFile(cliPackagePath(bundle), 'utf8'))
   } catch {
-    return undefined
+    try {
+      document = JSON.parse(await readFile(join(bundle, 'resources', 'app.asar.unpacked', 'cli', 'package.json'), 'utf8'))
+    } catch {
+      return undefined
+    }
   }
   if (typeof document !== 'object' || document === null || Array.isArray(document)) return undefined
   const pkg = document as Record<string, unknown>
@@ -142,6 +178,9 @@ export interface ResolveChatIdentityOptions {
   cliVersion?: (bundle: string) => Promise<string | undefined>
   /** CN saved-cache path; defaults to `$DSH_HOME/.workbuddy-app-version.json`. */
   cnSavedPath?: string
+  /** Test seams for Windows installation discovery. */
+  platform?: NodeJS.Platform
+  windowsElectronPath?: () => Promise<string>
 }
 
 /** The installed CN desktop bundle, or `undefined` when it is not installed (or not readable). */
@@ -153,6 +192,17 @@ async function installedCnApp(): Promise<{ version: string; bundle: string } | u
     if (version !== undefined) return { version, bundle }
   }
   return undefined
+}
+
+async function installedWindowsCnApp(options: ResolveChatIdentityOptions): Promise<{ version: string; bundle: string } | undefined> {
+  try {
+    const binary = await (options.windowsElectronPath ?? (() => atRestKeyProviderFor(CN_VARIANT).installationPath()))()
+    const bundle = dirname(binary)
+    const version = await readWindowsAppVersion(bundle)
+    return version === undefined ? undefined : { version, bundle }
+  } catch {
+    return undefined
+  }
 }
 
 /** Default CN saved-cache path. */
@@ -178,6 +228,8 @@ export async function resolveChatIdentity(
     || options.resolveIntl !== undefined
     || options.cliVersion !== undefined
     || options.cnSavedPath !== undefined
+    || options.platform !== undefined
+    || options.windowsElectronPath !== undefined
   if (!injectable) {
     const cached = cache.get(region)
     if (cached !== undefined) return cached
@@ -213,7 +265,11 @@ export function fallbackChatIdentity(region: WorkBuddyRegion): ChatIdentity {
 /** CN: installed `WorkBuddy.app` → CN saved cache → CN fallback. */
 async function resolveCnIdentity(options: ResolveChatIdentityOptions): Promise<ChatIdentity> {
   const savedPath = options.cnSavedPath ?? cnSavedVersionPath()
-  const installed = await (options.installedCn ?? installedCnApp)()
+  const installed = options.installedCn !== undefined
+    ? await options.installedCn()
+    : (options.platform ?? process.platform) === 'win32'
+      ? await installedWindowsCnApp(options)
+      : await installedCnApp()
   if (installed !== undefined && validAppVersion(installed.version)) {
     const cliVersion = await (options.cliVersion ?? readCliVersion)(installed.bundle)
     const identity: ChatIdentity = {
