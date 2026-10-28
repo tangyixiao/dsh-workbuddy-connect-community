@@ -500,6 +500,15 @@ describe('error text policy against the host AUTH heuristic (PR #58)', () => {
     return await response.text()
   }
 
+  it('shows a numeric upstream business code without leaking other response fields', async () => {
+    const text = await shimErrorBody(() => ({ ok: false, status: 400, kind: 'client', message: JSON.stringify({ code: 11128, msg: 'internal detail', token: 'private-synthetic-token', displayMsg: { zh: '请求被拦截，请重新发送' } }) }))
+    const body = JSON.parse(text) as { error: { message: string } }
+    expect(body.error.message).toContain('11128')
+    expect(body.error.message).toContain('请求被拦截')
+    expect(body.error.message).not.toContain('private-synthetic-token')
+    expect(body.error.message).not.toContain('internal detail')
+  })
+
   it('shows the display message of a review rejection without a bare 403', async () => {
     const text = await shimErrorBody(() => ({
       ok: false,

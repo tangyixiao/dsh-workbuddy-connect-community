@@ -252,6 +252,15 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
 
     if (!result.ok) {
       const detail = extractDisplayErrorMessage(result.message) ?? result.message.slice(0, 400)
+      // The localized block message is shared by several failures. Preserve
+      // only the numeric business code, not the upstream response or msg.
+      let businessCode = ''
+      if (detail.includes('请求被拦截')) {
+        try {
+          const code: unknown = (JSON.parse(result.message) as { code?: unknown }).code
+          if (typeof code === 'number' && Number.isInteger(code) && code >= 10000 && code <= 99999) businessCode = ` [upstream code ${code}]`
+        } catch { /* non-JSON errors have no safe business code */ }
+      }
       // The host adapter classifies any error text containing a bare
       // `401`/`403` word as AUTH, which would mask business errors (safety
       // review, illegal request) behind an "invalid API key" banner. Only
@@ -266,7 +275,7 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
         res,
         KIND_STATUS[result.kind],
         result.kind,
-        `workbuddy upstream ${result.kind}${statusNote}: ${detail}`,
+        `workbuddy upstream ${result.kind}${statusNote}: ${detail}${businessCode}`,
       )
       return
     }
