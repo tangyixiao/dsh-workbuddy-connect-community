@@ -257,8 +257,17 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
       let businessCode = ''
       if (detail.includes('请求被拦截')) {
         try {
-          const code: unknown = (JSON.parse(result.message) as { code?: unknown }).code
-          if (typeof code === 'number' && Number.isInteger(code) && code >= 10000 && code <= 99999) businessCode = ` [upstream code ${code}]`
+          const response = JSON.parse(result.message) as { code?: unknown; msg?: unknown }
+          const code = response.code
+          if (typeof code === 'number' && Number.isInteger(code) && code >= 10000 && code <= 99999) {
+            const knownReasons: Record<string, string> = {
+              'illegal api invocation from an unapproved channel': 'unapproved-channel',
+              'first message is not system prompt': 'first-system-missing',
+              'conversation id missing': 'conversation-id-missing',
+            }
+            const reason = code === 11128 && typeof response.msg === 'string' ? knownReasons[response.msg.trim().toLowerCase()] : undefined
+            businessCode = ` [upstream code ${code}${reason === undefined ? '' : `; reason ${reason}`}]`
+          }
         } catch { /* non-JSON errors have no safe business code */ }
       }
       // The host adapter classifies any error text containing a bare

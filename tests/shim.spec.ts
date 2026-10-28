@@ -509,6 +509,18 @@ describe('error text policy against the host AUTH heuristic (PR #58)', () => {
     expect(body.error.message).not.toContain('internal detail')
   })
 
+  it('distinguishes the known 11128 channel and missing-system categories', async () => {
+    for (const [msg, expected] of [
+      ['Illegal API invocation from an unapproved channel', 'unapproved-channel'],
+      ['first message is not system prompt', 'first-system-missing'],
+      ['conversation id missing', 'conversation-id-missing'],
+    ]) {
+      const text = await shimErrorBody(() => ({ ok: false, status: 400, kind: 'client', message: JSON.stringify({ code: 11128, msg, displayMsg: { zh: '请求被拦截，请重新发送' } }) }))
+      const body = JSON.parse(text) as { error: { message: string } }
+      expect(body.error.message).toContain(expected)
+    }
+  })
+
   it('shows the display message of a review rejection without a bare 403', async () => {
     const text = await shimErrorBody(() => ({
       ok: false,
