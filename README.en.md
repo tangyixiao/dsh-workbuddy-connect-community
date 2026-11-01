@@ -8,14 +8,14 @@ The community fork also applies a narrow, exact product-name transform to plain 
 
 ## Install or replace
 
-The unpublished local candidate **`0.1.7-rc5.1`** declares DSH **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5`**, covering only those three versions. rc.4, later RCs, stable 0.2.1 and subsequent releases need separate qualification. The candidate updates development dependencies to rc.5 and adds only that version to the compatibility declarations. Version qualification and live account/model availability are separate checks; local type, test, and build checks do not replace DSH UI or live-request acceptance. Windows is the only platform verified locally so far. macOS and Linux have not been live-verified for this fork.
+Preview **`0.1.7-rc5.1`** declares DSH **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5`**, covering only those three versions. rc.4, later RCs, stable 0.2.1 and subsequent releases need separate qualification. It updates development dependencies to rc.5 and adds only that version to the compatibility declarations. A read-only catalogue check returned 16 models for the Windows China client, and the user confirmed that the DSH model picker displayed them. Authenticated model generation and live WorkBuddy AI requests have not been accepted. macOS and Linux have not been live-verified for this fork.
 
 **DSH Desktop:** use Extensions → Plugin Management → Add Plugin and select the downloaded `.tgz` to install or update it. The desktop app manages its profile; the CLI example below is for a standalone Web profile. Enable only one of the original and community packages to avoid duplicate provider registration.
 
-Download the package from [GitHub Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/latest) and install it through a DSH-supported plugin method:
+Download the package from the [GitHub preview release](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.7-rc5.1) and install it through a DSH-supported plugin method:
 
 ```sh
-dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/latest/download/dsh-workbuddy-connect-community.tgz
+dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.7-rc5.1/dsh-workbuddy-connect-community-0.1.7-rc5.1.tgz
 ```
 
 If the original plugin is installed, save its current version and configuration, then replace it through a DSH-supported method. The original and community plugins must not be enabled together: they use the same provider IDs and account login data. If replacement fails, remove the community package and restore the saved original. Do not delete WorkBuddy sign-in data or chat data. The first release is distributed through GitHub Releases; it is not published to npm.
