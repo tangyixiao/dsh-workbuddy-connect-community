@@ -8,7 +8,7 @@ The community fork also applies a narrow, exact product-name transform to plain 
 
 ## Install or replace
 
-Declared DSH range: **`0.2.1-rc.2 || 0.2.1-rc.3`**, covering only rc.2 and rc.3. Later RCs, stable 0.2.1 and subsequent releases need separate qualification. Version 0.1.1 updates development dependencies to rc.3 and fixes the exact rc.2 peers that made 0.1.0 fail the host compatibility check. Version qualification and live account/model availability are separate checks. Windows is the only platform verified locally so far. macOS and Linux have not been live-verified for this fork.
+The unpublished local candidate **`0.1.7-rc5.1`** declares DSH **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5`**, covering only those three versions. rc.4, later RCs, stable 0.2.1 and subsequent releases need separate qualification. The candidate updates development dependencies to rc.5 and adds only that version to the compatibility declarations. Version qualification and live account/model availability are separate checks; local type, test, and build checks do not replace DSH UI or live-request acceptance. Windows is the only platform verified locally so far. macOS and Linux have not been live-verified for this fork.
 
 **DSH Desktop:** use Extensions → Plugin Management → Add Plugin and select the downloaded `.tgz` to install or update it. The desktop app manages its profile; the CLI example below is for a standalone Web profile. Enable only one of the original and community packages to avoid duplicate provider registration.
 
