@@ -8,14 +8,14 @@ The community fork also applies a narrow, exact product-name transform to plain 
 
 ## Install or replace
 
-Release **`0.1.8`** declares DSH **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5`**, covering only those three versions. rc.4, later RCs, stable 0.2.1 and subsequent releases need separate qualification. It retains rc.5 compatibility and offers per-model context choices beside the composer model button and in plugin settings where the catalog declares tiers. Choices are stored separately by product and account and set the DSH context budget; models without declared tiers have no selector. When the CN CLI catalog omits tiers, a personal account can use a desktop product snapshot less than 24 hours old, joined by exact model ID and input cap; otherwise no tier is inferred. A read-only catalogue check returned 16 models for the Windows China client, and the user confirmed that the DSH model picker displayed them. Authenticated model generation and live WorkBuddy AI requests have not been accepted. macOS and Linux have not been live-verified for this fork.
+Release **`0.1.9`** declares DSH **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5`**, covering only those three versions. rc.4, later RCs, stable 0.2.1 and subsequent releases need separate qualification. It retains rc.5 compatibility and offers per-model context choices in the composer model menu and in plugin settings where the catalog declares tiers. Choices are stored separately by product and account and set the DSH context budget; models without declared tiers have no selector. When the CN CLI catalog omits tiers, a personal account can use a desktop product snapshot less than 24 hours old, joined by exact model ID and input cap; otherwise no tier is inferred. A read-only catalogue check returned 16 models for the Windows China client, and the user confirmed that the DSH model picker displayed them. Authenticated model generation and live WorkBuddy AI requests have not been accepted. macOS and Linux have not been live-verified for this fork.
 
 **DSH Desktop:** use Extensions → Plugin Management → Add Plugin and select the downloaded `.tgz` to install or update it. The desktop app manages its profile; the CLI example below is for a standalone Web profile. Enable only one of the original and community packages to avoid duplicate provider registration.
 
-Download the package from the [GitHub release](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.8) and install it through a DSH-supported plugin method:
+Download the package from the [GitHub release](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.9) and install it through a DSH-supported plugin method:
 
 ```sh
-dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.8/dsh-workbuddy-connect-community-0.1.8.tgz
+dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.9/dsh-workbuddy-connect-community-0.1.9.tgz
 ```
 
 If the original plugin is installed, save its current version and configuration, then replace it through a DSH-supported method. The original and community plugins must not be enabled together: they use the same provider IDs and account login data. If replacement fails, remove the community package and restore the saved original. Do not delete WorkBuddy sign-in data or chat data. The first release is distributed through GitHub Releases; it is not published to npm.
