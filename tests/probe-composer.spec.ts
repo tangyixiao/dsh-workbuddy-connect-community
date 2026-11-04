@@ -111,6 +111,21 @@ describe('Composer model probe', () => {
   const buttonLabels = () => button().map(node => node.children.join(''))
   const tooltips = () => view!.root.findAllByProps({ role: 'tooltip' })
 
+  it('changes the active model context from the composer and reports the saved value', async () => {
+    statusBody = { status: 'signed-in', probeKey: 'test-key', visibility: { account: 'a', disabled: [] }, models: [{ id: 'glm-5.2', name: 'GLM-5.2', contextWindow: 960000, supportedContextWindows: [300000, 600000, 960000] }] }
+    request.mockImplementation(async (_url: string, init?: RequestInit) => {
+      if (init?.method !== 'POST') return { ok: true, json: async () => statusBody }
+      expect(JSON.parse(String(init.body))).toEqual({ action: 'set-model-context-window', model: 'glm-5.2', account: 'a', window: 600000 })
+      statusBody = { ...statusBody, models: [{ id: 'glm-5.2', name: 'GLM-5.2', contextWindow: 600000, supportedContextWindows: [300000, 600000, 960000] }] }
+      return { ok: true, json: async () => ({ state: 'updated' }) }
+    })
+    await mount()
+    const picker = view!.root.findByType('select')
+    expect(picker.props.value).toBe(960000)
+    await act(async () => { await picker.props.onChange({ currentTarget: { value: '600000' } }) })
+    expect(view!.root.findByType('select').props.value).toBe(600000)
+  })
+
   it('does not read status or show an entry for another provider', async () => {
     select('other', 'glm-5.2')
     await mount()

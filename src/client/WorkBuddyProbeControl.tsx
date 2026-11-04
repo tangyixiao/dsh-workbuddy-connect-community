@@ -363,6 +363,8 @@ function ModelProbe({ model, card, label, t }: {
    * untouched — the two features merely share one document.
    */
   const [creditFailed, setCreditFailed] = useState(false)
+  const [contextBusy, setContextBusy] = useState(false)
+  const [contextError, setContextError] = useState<string>()
   /** Whether a manual credit refresh is in flight, for the ↻'s busy state. */
   const [refreshing, setRefreshing] = useState(false)
   const inFlight = useRef(false)
@@ -508,6 +510,30 @@ function ModelProbe({ model, card, label, t }: {
   // affordance whatever the document says, which is also how the control
   // recovers from an unreadable first read.
   const credit = creditFailed ? undefined : creditBadge(status, card, t)
+  const contextModel = status?.status === 'signed-in' ? status.models?.find(item => item.id === model) : undefined
+  const contextAccount = status?.status === 'signed-in' ? status.visibility?.account : undefined
+  const contextKey = status?.status === 'signed-in' ? status.probeKey : undefined
+  const setContextWindow = async (window: number): Promise<void> => {
+    if (contextAccount === undefined || contextKey === undefined || contextBusy) return
+    setContextBusy(true)
+    setContextError(undefined)
+    try {
+      const response = await fetch(card.probePath, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-Workbuddy-Probe-Key': contextKey },
+        body: JSON.stringify({ action: 'set-model-context-window', model, account: contextAccount, window }),
+      })
+      const value: unknown = await response.json()
+      if (!response.ok || typeof value !== 'object' || value === null || (value as Record<string, unknown>)['state'] !== 'updated') {
+        throw new Error(t('requestFailed'))
+      }
+      await refresh()
+    } catch {
+      if (mounted.current) setContextError(t('requestFailed'))
+    } finally {
+      if (mounted.current) setContextBusy(false)
+    }
+  }
 
   const text = tooltipText(t, model, { busy, result, failed })
   const disabled = busy || probe?.running === true || key === undefined
@@ -538,6 +564,17 @@ function ModelProbe({ model, card, label, t }: {
       </button>
 
       {credit === undefined ? null : <span style={creditStyle}>{credit}</span>}
+      {contextAccount !== undefined && contextKey !== undefined && contextModel?.contextWindow !== undefined && (contextModel.supportedContextWindows?.length ?? 0) > 1 ? (
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+          <span>{t('contextHeading')}</span>
+          <select aria-label={t('contextHeading')} value={contextModel.contextWindow} disabled={contextBusy}
+            onChange={event => { void setContextWindow(Number(event.currentTarget.value)) }}>
+            {!contextModel.supportedContextWindows!.includes(contextModel.contextWindow) ? <option value={contextModel.contextWindow}>{contextModel.contextWindow}</option> : null}
+            {contextModel.supportedContextWindows!.map(window => <option key={window} value={window}>{window >= 1000 && window % 1000 === 0 ? `${window / 1000}K` : window}</option>)}
+          </select>
+          {contextError === undefined ? null : <span role="alert">{contextError}</span>}
+        </label>
+      ) : null}
 
       {visible && (
         <button
