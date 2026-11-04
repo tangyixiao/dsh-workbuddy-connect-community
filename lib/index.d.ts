@@ -1233,9 +1233,12 @@ declare class WorkBuddyCatalog {
   private models;
   private visible;
   private useMaximumContextWindow;
+  private contextWindows;
   constructor(initial?: readonly WorkBuddyModelInfo[]);
   /** Current entries; empty while the variant has no usable credential. */
   current(): readonly WorkBuddyModelInfo[];
+  /** Apply saved selections. Only currently declared tiers can take effect. */
+  setContextWindows(windows: Readonly<Record<string, number>>): void;
   /** Replace the list; callers invalidate their adapter snapshot after this. */
   set(models: readonly WorkBuddyModelInfo[]): void;
   /** Whether this variant's models are exposed at all. */

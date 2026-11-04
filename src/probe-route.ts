@@ -60,6 +60,7 @@ export interface WorkBuddyProbeRouteOptions {
    * be written — a toggle the user pressed must never be reported as saved
    * when it was not.
    */
+  setModelContextWindow?: (modelId: string, window: number, expectedAccount: string) => Promise<{ state: string; reason?: string }>
   setModelVisibility?: (modelId: string, visible: boolean, expectedAccount: string) => Promise<{ state: string; reason?: string }>
   /**
    * Route path to mount. Defaults to the CN variant's path so existing callers
@@ -121,6 +122,11 @@ function parseAction(text: string): WorkBuddyProbeAction | undefined {
     return typeof wrapped['enabled'] === 'boolean'
       ? { action: 'set-maximum-context-window', enabled: wrapped['enabled'] }
       : undefined
+  }
+  if (action === 'set-model-context-window') {
+    const { model, account, window } = wrapped
+    if (typeof model !== 'string' || !model.trim() || typeof account !== 'string' || !account || typeof window !== 'number' || !Number.isSafeInteger(window) || window <= 0) return undefined
+    return { action, model: model.trim(), account, window }
   }
   if (action === 'set-model-visibility') {
     const model = wrapped['model']
@@ -192,6 +198,11 @@ export function workBuddyProbeHandler(
           return
         }
         json(res, 200, await deps.setMaximumContextWindow(action.enabled === true))
+        return
+      }
+      if (action.action === 'set-model-context-window') {
+        if (deps.setModelContextWindow === undefined) { json(res, 404, { error: 'context-window-setting-not-supported' }); return }
+        json(res, 200, await deps.setModelContextWindow(action.model as string, action.window as number, action.account as string))
         return
       }
       if (action.action === 'set-model-visibility') {

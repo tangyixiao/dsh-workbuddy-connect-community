@@ -220,6 +220,25 @@ describe('WorkBuddy plugin card', () => {
     expect(rendered).not.toContain('Signed in as ')
   })
 
+  it('offers the CN model declared context tiers and posts the chosen budget', async () => {
+    status()
+    statusBody.visibility = { account: 'account-a', disabled: [] }
+    statusBody.models = [{ id: 'hy4', name: 'Hy4', contextWindow: 300000, supportedContextWindows: [300000, 600000, 960000] }]
+    request.mockImplementation(async (_url: string, init?: RequestInit) => {
+      if (init?.method !== 'POST') return { ok: true, json: async () => statusBody }
+      const action = JSON.parse(String(init.body))
+      expect(action).toEqual({ action: 'set-model-context-window', model: 'hy4', window: 600000, account: 'account-a' })
+      statusBody.models = [{ id: 'hy4', name: 'Hy4', contextWindow: 600000, supportedContextWindows: [300000, 600000, 960000] }]
+      return { ok: true, json: async () => ({ state: 'updated' }) }
+    })
+    await mount()
+    await press(en.tabContext)
+    const select = view!.root.findByType('select')
+    expect(select.findAllByType('option').map(option => option.props.value)).toEqual([300000, 600000, 960000])
+    await act(async () => { select.props.onChange({ currentTarget: { value: '600000' } }) })
+    expect(view!.root.findByType('select').props.value).toBe(600000)
+  })
+
   it('keeps the international maximum-window switch available to turn off again', async () => {
     status()
     statusBody.useMaximumContextWindow = false

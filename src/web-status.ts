@@ -166,6 +166,7 @@ export async function workBuddyWebStatus(
         ...maxContextWindow === undefined || maxContextWindow <= defaultContextWindow
           ? {}
           : { maxContextWindow },
+        ...(supported.length > 1 ? { supportedContextWindows: supported } : {}),
         ...typeof model.maxInputTokens === 'number' && model.maxInputTokens > 0
           ? { maxInputTokens: model.maxInputTokens }
           : {},

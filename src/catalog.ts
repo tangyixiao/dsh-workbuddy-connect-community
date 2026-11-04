@@ -124,6 +124,7 @@ export class WorkBuddyCatalog {
   private models: readonly WorkBuddyModelInfo[]
   private visible = true
   private useMaximumContextWindow = false
+  private contextWindows: Readonly<Record<string, number>> = {}
 
   constructor(initial: readonly WorkBuddyModelInfo[] = FALLBACK_WORKBUDDY_MODELS) { this.models = initial }
 
@@ -132,12 +133,19 @@ export class WorkBuddyCatalog {
     if (!this.visible) return []
     return this.models.map(model => {
       const current = modelWithCurrentPromotion(model)
+      const chosen = this.contextWindows[current.id]
+      if (chosen !== undefined && current.supportedContextWindows?.includes(chosen)) {
+        return { ...current, defaultContextWindow: current.defaultContextWindow ?? current.contextWindow, contextWindow: chosen }
+      }
       const maximum = current.supportedContextWindows === undefined ? undefined : Math.max(...current.supportedContextWindows)
       return this.useMaximumContextWindow && maximum !== undefined && maximum > current.contextWindow
         ? { ...current, defaultContextWindow: current.defaultContextWindow ?? current.contextWindow, contextWindow: maximum }
         : current
     })
   }
+
+  /** Apply saved selections. Only currently declared tiers can take effect. */
+  setContextWindows(windows: Readonly<Record<string, number>>): void { this.contextWindows = { ...windows } }
 
   /** Replace the list; callers invalidate their adapter snapshot after this. */
   set(models: readonly WorkBuddyModelInfo[]): void {
