@@ -35,6 +35,8 @@
 
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
+import { findContextMenu } from './context-menu.ts'
 import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import { CARD_VARIANTS, type WorkBuddyCardVariant, type WorkBuddyPluginCardInjected } from './WorkBuddyPluginCard.tsx'
 import { isWorkBuddyWebStatus } from './status-document.ts'
@@ -365,6 +367,8 @@ function ModelProbe({ model, card, label, t }: {
   const [creditFailed, setCreditFailed] = useState(false)
   const [contextBusy, setContextBusy] = useState(false)
   const [contextError, setContextError] = useState<string>()
+  const [contextMenu, setContextMenu] = useState<HTMLElement>()
+  const contextAnchor = useRef<HTMLSpanElement>(null)
   /** Whether a manual credit refresh is in flight, for the ↻'s busy state. */
   const [refreshing, setRefreshing] = useState(false)
   const inFlight = useRef(false)
@@ -513,6 +517,18 @@ function ModelProbe({ model, card, label, t }: {
   const contextModel = status?.status === 'signed-in' ? status.models?.find(item => item.id === model) : undefined
   const contextAccount = status?.status === 'signed-in' ? status.visibility?.account : undefined
   const contextKey = status?.status === 'signed-in' ? status.probeKey : undefined
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return
+    const update = () => {
+      const anchor = contextAnchor.current
+      const menu = anchor === null ? undefined : findContextMenu(anchor, card.id, model)
+      setContextMenu(previous => previous === menu ? previous : menu)
+    }
+    update()
+    const observer = new MutationObserver(update)
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded', 'aria-controls', 'role'] })
+    return () => observer.disconnect()
+  }, [card.id, model])
   const setContextWindow = async (window: number): Promise<void> => {
     if (contextAccount === undefined || contextKey === undefined || contextBusy) return
     setContextBusy(true)
@@ -545,6 +561,7 @@ function ModelProbe({ model, card, label, t }: {
 
   return (
     <span
+      ref={contextAnchor}
       style={wrapperStyle}
     >
       <button
@@ -564,16 +581,17 @@ function ModelProbe({ model, card, label, t }: {
       </button>
 
       {credit === undefined ? null : <span style={creditStyle}>{credit}</span>}
-      {contextAccount !== undefined && contextKey !== undefined && contextModel?.contextWindow !== undefined && (contextModel.supportedContextWindows?.length ?? 0) > 1 ? (
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+      {contextMenu !== undefined && contextAccount !== undefined && contextKey !== undefined && contextModel?.contextWindow !== undefined && (contextModel.supportedContextWindows?.length ?? 0) > 1 ? createPortal(
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '12px 16px', color: 'inherit', font: 'inherit' }}>
           <span>{t('contextHeading')}</span>
           <select aria-label={t('contextHeading')} value={contextModel.contextWindow} disabled={contextBusy}
+            style={{ color: 'inherit', background: 'transparent', border: 0, font: 'inherit', cursor: 'pointer', maxWidth: '55%' }}
             onChange={event => { void setContextWindow(Number(event.currentTarget.value)) }}>
             {!contextModel.supportedContextWindows!.includes(contextModel.contextWindow) ? <option value={contextModel.contextWindow}>{contextModel.contextWindow}</option> : null}
             {contextModel.supportedContextWindows!.map(window => <option key={window} value={window}>{window >= 1000 && window % 1000 === 0 ? `${window / 1000}K` : window}</option>)}
           </select>
           {contextError === undefined ? null : <span role="alert">{contextError}</span>}
-        </label>
+        </label>, contextMenu
       ) : null}
 
       {visible && (

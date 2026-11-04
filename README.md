@@ -8,14 +8,14 @@
 
 ## 安装或替换
 
-正式版 **`0.1.8`** 的 DSH 声明范围为 **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5`**，只包含这三个版本；rc.4、后续 RC、正式版及 0.2.2 / 0.3 需要另行验证。该版本保留 rc.5 兼容声明，并在对话输入栏的模型按钮旁及插件上下文标签页提供上游声明的窗口档位选择。选择按版本、账号和模型保存，直接影响 DSH 的上下文预算；模型不提供档位时不显示选择框。国内 CLI 目录缺少档位时，仅使用当前个人账号最近 24 小时内的桌面产品配置，按模型 ID 和最大输入上限精确匹配；无可验证配置时不展示选项。Windows 国内版已通过只读目录核验，返回 16 个模型，用户已确认 DSH 模型列表显示；真实模型生成及 WorkBuddy AI 国际版的实时请求尚未验收。macOS 和 Linux 尚未进行本分叉的实时验证。
+正式版 **`0.1.9`** 的 DSH 声明范围为 **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5`**，只包含这三个版本；rc.4、后续 RC、正式版及 0.2.2 / 0.3 需要另行验证。该版本保留 rc.5 兼容声明，并在模型菜单的“模型”和“推理等级”下方及插件上下文标签页提供上游声明的窗口档位选择。选择按版本、账号和模型保存，直接影响 DSH 的上下文预算；模型不提供档位时不显示选择框。国内 CLI 目录缺少档位时，仅使用当前个人账号最近 24 小时内的桌面产品配置，按模型 ID 和最大输入上限精确匹配；无可验证配置时不展示选项。Windows 国内版已通过只读目录核验，返回 16 个模型，用户已确认 DSH 模型列表显示；真实模型生成及 WorkBuddy AI 国际版的实时请求尚未验收。macOS 和 Linux 尚未进行本分叉的实时验证。
 
 **DSH Desktop**：在「扩展 → 插件管理 → 添加插件」中选择下载的 `.tgz` 文件完成安装或更新。Desktop profile 由桌面应用管理；下面的 CLI 示例用于独立 Web profile。原版与社区版只能启用一份，避免重复注册 provider。
 
-从 [GitHub 正式发布](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.8) 下载并按 DSH 支持的插件安装方式安装独立包：
+从 [GitHub 正式发布](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.9) 下载并按 DSH 支持的插件安装方式安装独立包：
 
 ```sh
-dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.8/dsh-workbuddy-connect-community-0.1.8.tgz
+dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.9/dsh-workbuddy-connect-community-0.1.9.tgz
 ```
 
 如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。首版通过 GitHub Release 分发，暂不发布到 npm。
