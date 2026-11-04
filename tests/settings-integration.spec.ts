@@ -821,6 +821,15 @@ describe('WorkBuddy Host settings integration', () => {
       const statusAfterToggle = await getStatus()
       expect(statusAfterToggle['useMaximumContextWindow']).toBe(false)
 
+      const account = (statusAfterToggle['visibility'] as { account: string }).account
+      const choose = (window: number, expected = account) => postProbe(probeKey, { action: 'set-model-context-window', model: 'deepseek-v4.1-flash', window, account: expected })
+      expect((await choose(123456)).body.state).toBe('failed')
+      expect((await choose(1000000, 'wrong-account')).body.state).toBe('stale-account')
+      expect((await choose(1000000)).body.state).toBe('updated')
+      expect((await ctx.llm.resolveModelInfo('workbuddy-ai', 'deepseek-v4.1-flash')).context?.contextWindow).toBe(1000000)
+      expect((await choose(300000)).body.state).toBe('updated')
+      expect((await ctx.llm.resolveModelInfo('workbuddy-ai', 'deepseek-v4.1-flash')).context?.contextWindow).toBe(300000)
+
       // 2. Persistence failure: report failure accurately and keep runtime/persisted state consistent
       forms.failNext('disk quota exceeded')
       const failed = await postProbe(probeKey, { action: 'set-maximum-context-window', enabled: true })

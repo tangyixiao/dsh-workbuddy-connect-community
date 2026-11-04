@@ -1,3 +1,4 @@
+import { ContextWindowStore } from './context-window-store.ts'
 /**
  * WorkBuddy models for DeepSeek Harness, reusing the WorkBuddy desktop apps'
  * sign-in. Registers one provider per product variant — `workbuddy` for the CN
@@ -350,6 +351,7 @@ interface VariantRuntime {
    * another, and switching accounts switches the whole list in one read.
    */
   visibilityStore: WorkBuddyVisibilityStore
+  contextWindowStore: ContextWindowStore
   /**
    * The visibility account key currently in effect (`uid:enterpriseId`), or
    * undefined when signed out or the credential carries no uid. Read per call,
@@ -497,6 +499,7 @@ function createVariantRuntime(
     probeService,
     savedCatalogs,
     visibilityStore,
+    contextWindowStore: new ContextWindowStore(workbuddyVisibilityPath(`${variant.visibilityFilename}.context-windows`)),
     account: () => accountOf(variant.id),
     fallback,
     catalogSource: 'fallback',
@@ -766,6 +769,7 @@ export function apply(ctx: Context, config: Config): void {
     else lastIdentities.set(id, identity)
     if (account === undefined) lastAccounts.delete(id)
     else lastAccounts.set(id, account)
+    runtime.catalog.setContextWindows(account === undefined ? {} : runtime.contextWindowStore.get(account))
     // Any change of identity invalidates in-flight work and the catalog it was
     // serving; recorded probe answers stay on disk, keyed by account and
     // re-judged on every read.
@@ -892,6 +896,17 @@ export function apply(ctx: Context, config: Config): void {
             if (setMaximumContextWindow === undefined) return { state: 'failed', reason: 'settings are unavailable' }
             return setMaximumContextWindow(enabled)
           },
+        },
+        setModelContextWindow: async (modelId, window, expectedAccount) => {
+          const account = runtime.account()
+          if (account === undefined || account !== expectedAccount) return { state: 'stale-account', reason: 'the signed-in account changed' }
+          const model = runtime.catalog.current().find(candidate => candidate.id === modelId)
+          if (model === undefined || !model.supportedContextWindows?.includes(window)) return { state: 'failed', reason: 'the model does not declare this context window' }
+          try { runtime.contextWindowStore.set(account, modelId, window) }
+          catch (error: unknown) { return { state: 'failed', reason: error instanceof Error ? error.message.slice(0, 300) : String(error) } }
+          runtime.catalog.setContextWindows(runtime.contextWindowStore.get(account))
+          runtime.invalidate()
+          return { state: 'updated' }
         },
         setModelVisibility: async (modelId, visible, expectedAccount) => {
           // Refused rather than bucketed: a signed-out variant, or a

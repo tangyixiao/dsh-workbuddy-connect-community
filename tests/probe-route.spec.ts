@@ -86,6 +86,17 @@ async function postRaw(
 }
 
 describe('probe control route', () => {
+  it('validates and forwards context tier actions through the guarded route', async () => {
+    const received: unknown[] = []
+    const { origin, key } = await mount({ setModelContextWindow: async (...args) => { received.push(args); return { state: 'updated' } } })
+    const headers = { 'X-WorkBuddy-Probe-Key': key }
+    const body = { action: 'set-model-context-window', model: 'hy4', window: 600000, account: 'account-a' }
+    expect((await post(origin, body)).status).toBe(403)
+    expect((await post(origin, { ...body, window: -1 }, headers)).status).toBe(400)
+    expect((await post(origin, body, headers)).body.state).toBe('updated')
+    expect(received).toEqual([['hy4', 600000, 'account-a']])
+  })
+
   it('accepts a probe carrying the correct key', async () => {
     const { origin, key, calls } = await mount()
     const result = await post(origin, { action: 'probe', model: 'auto' }, { 'X-WorkBuddy-Probe-Key': key })

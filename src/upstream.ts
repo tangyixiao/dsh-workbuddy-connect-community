@@ -1439,14 +1439,14 @@ export function parseModelCatalog(
         name: typeof wrapped['name'] === 'string' && wrapped['name'] !== '' ? wrapped['name'] : id,
         contextWindow: international && isObject(wrapped['contextWindow']) && positive(wrapped['contextWindow']['defaultLength'])
           ? wrapped['contextWindow']['defaultLength'] : input,
-        ...(international ? {
+        ...(isObject(wrapped['contextWindow']) ? {
           ...isObject(wrapped['contextWindow']) && positive(wrapped['contextWindow']['defaultLength'])
             ? { defaultContextWindow: wrapped['contextWindow']['defaultLength'] } : {},
           maxInputTokens: input,
           supportedContextWindows: isObject(wrapped['contextWindow']) && Array.isArray(wrapped['contextWindow']['supportedLengths'])
-            ? wrapped['contextWindow']['supportedLengths'].filter(positive) : [],
-          promotions: parsePromotions(data['modelPromotions'], id),
+            ? [...new Set(wrapped['contextWindow']['supportedLengths'].filter((value): value is number => positive(value) && Number.isSafeInteger(value) && value <= input))].sort((a, b) => a - b) : [],
         } : {}),
+        ...(international ? { promotions: parsePromotions(data['modelPromotions'], id) } : {}),
         maxTokens: output,
         supportsImages: wrapped['supportsImages'] === true && wrapped['disabledMultimodal'] !== true,
         ...resolveUpstreamReasoning(wrapped),
