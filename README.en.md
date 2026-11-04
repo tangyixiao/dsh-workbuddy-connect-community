@@ -18,7 +18,7 @@ Download the package from the [GitHub release](https://github.com/tangyixiao/dsh
 dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.11/dsh-workbuddy-connect-community-0.1.11.tgz
 ```
 
-If the original plugin is installed, save its current version and configuration, then replace it through a DSH-supported method. The original and community plugins must not be enabled together: they use the same provider IDs and account login data. If replacement fails, remove the community package and restore the saved original. Do not delete WorkBuddy sign-in data or chat data. The package is also available on [npm](https://www.npmjs.com/package/dsh-workbuddy-connect-community); 0.1.11 has been submitted for publication. If npm does not yet show it, use the GitHub Release above and retry later.
+If the original plugin is installed, save its current version and configuration, then replace it through a DSH-supported method. The original and community plugins must not be enabled together: they use the same provider IDs and account login data. If replacement fails, remove the community package and restore the saved original. Do not delete WorkBuddy sign-in data or chat data. Version 0.1.11 is also published on [npm](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.11).
 
 ### Coexistence with ZCode
 

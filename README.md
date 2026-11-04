@@ -18,7 +18,7 @@
 dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.11/dsh-workbuddy-connect-community-0.1.11.tgz
 ```
 
-如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。[npm](https://www.npmjs.com/package/dsh-workbuddy-connect-community) 也提供该插件；0.1.11 已提交发布，若 npm 尚未显示，请使用上方 GitHub Release 并稍后重试。
+如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。0.1.11 也已发布到 [npm](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.11)。
 
 ### 与 ZCode 共存
 
