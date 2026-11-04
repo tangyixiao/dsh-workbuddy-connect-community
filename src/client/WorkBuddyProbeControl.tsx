@@ -551,6 +551,10 @@ function ModelProbe({ model, card, label, t }: {
     }
   }
 
+  const hostRow = contextMenu?.querySelector<HTMLElement>(':scope > [role="menuitem"]')
+  const hostLabelClass = hostRow?.children[0]?.getAttribute('class') ?? undefined
+  const hostValueClass = hostRow?.children[1]?.getAttribute('class') ?? undefined
+  const hostChevronClass = hostRow?.children[2]?.getAttribute('class') ?? undefined
   const text = tooltipText(t, model, { busy, result, failed })
   const disabled = busy || probe?.running === true || key === undefined
   // Both bubbles and the tooltip anchor to the same spot above the control, so
@@ -582,14 +586,15 @@ function ModelProbe({ model, card, label, t }: {
 
       {credit === undefined ? null : <span style={creditStyle}>{credit}</span>}
       {contextMenu !== undefined && contextAccount !== undefined && contextKey !== undefined && contextModel?.contextWindow !== undefined && (contextModel.supportedContextWindows?.length ?? 0) > 1 ? createPortal(
-        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '12px 16px', color: 'inherit', font: 'inherit' }}>
-          <span>{t('contextHeading')}</span>
-          <select aria-label={t('contextHeading')} value={contextModel.contextWindow} disabled={contextBusy}
-            style={{ color: 'inherit', background: 'transparent', border: 0, font: 'inherit', cursor: 'pointer', maxWidth: '55%' }}
+        <label className={hostRow?.className} style={hostRow === null || hostRow === undefined ? { display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 8px', fontSize: 13 } : undefined}>
+          <span className={hostLabelClass}>{t('contextHeading')}</span>
+          <select className={hostValueClass} aria-label={t('contextHeading')} value={contextModel.contextWindow} disabled={contextBusy}
+            style={{ appearance: 'none', background: 'transparent', border: 0, outline: 0, font: 'inherit', cursor: 'pointer', textAlign: 'right' }}
             onChange={event => { void setContextWindow(Number(event.currentTarget.value)) }}>
             {!contextModel.supportedContextWindows!.includes(contextModel.contextWindow) ? <option value={contextModel.contextWindow}>{contextModel.contextWindow}</option> : null}
             {contextModel.supportedContextWindows!.map(window => <option key={window} value={window}>{window >= 1000 && window % 1000 === 0 ? `${window / 1000}K` : window}</option>)}
           </select>
+          <svg className={hostChevronClass} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
           {contextError === undefined ? null : <span role="alert">{contextError}</span>}
         </label>, contextMenu
       ) : null}
