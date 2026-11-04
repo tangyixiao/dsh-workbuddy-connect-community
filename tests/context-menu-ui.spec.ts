@@ -7,7 +7,7 @@ import { en } from '../src/client/locales.ts'
 
 it('places the context control under model and reasoning and saves a selection', async () => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  document.body.innerHTML = `<div id="composer"><div id="mount"></div><button aria-haspopup="menu" aria-expanded="true" aria-controls="model-menu"><span data-provider-id="workbuddy" data-model-id="hy4free">Hy4</span></button></div><div id="model-menu" role="menu"><button role="menuitem"><span data-provider-id="workbuddy" data-model-id="hy4free">Hy4</span></button><button role="menuitem">Reasoning</button></div>`
+  document.body.innerHTML = `<div id="composer"><div id="mount"></div><button aria-haspopup="menu" aria-expanded="true" aria-controls="model-menu"><span data-provider-id="workbuddy" data-model-id="hy4free">Hy4</span></button></div><div id="model-menu" role="menu"><button role="menuitem" class="host-cell"><span class="host-label">Model</span><span class="host-value"><span data-provider-id="workbuddy" data-model-id="hy4free">Hy4</span></span><svg class="host-chevron"></svg></button><button role="menuitem" class="host-cell">Reasoning</button></div>`
   const model = { id: 'hy4free', name: 'Hy4', contextWindow: 960000, supportedContextWindows: [300000, 600000, 960000] }
   const status = { status: 'signed-in', probeKey: 'key', visibility: { account: 'account', disabled: [] }, models: [model] }
   const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
@@ -24,6 +24,10 @@ it('places the context control under model and reasoning and saves a selection',
     const picker = menu.querySelector('select')!
     expect(picker).not.toBeNull()
     expect(menu.lastElementChild?.contains(picker)).toBe(true)
+    expect(menu.lastElementChild?.className).toBe('host-cell')
+    expect(menu.lastElementChild?.querySelector('span')?.className).toBe('host-label')
+    expect(picker.className).toBe('host-value')
+    expect(menu.lastElementChild?.querySelector('svg')?.getAttribute('class')).toBe('host-chevron')
     expect(document.querySelector('#composer select')).toBeNull()
     await act(async () => { picker.value = '600000'; picker.dispatchEvent(new Event('change', { bubbles: true })) })
     const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
