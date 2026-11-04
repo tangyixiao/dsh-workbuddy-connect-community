@@ -12,6 +12,7 @@ import { isHeartbeatProcessAlive, readHostHeartbeat, workbuddyHostHeartbeatPath 
 import { atRestKeyProviderFor } from './desktop-credential-protection.ts'
 import { CN_VARIANT, variantFor, WORKBUDDY_VARIANTS, type WorkBuddyVariant } from './variants.ts'
 import { resolveAppVersion } from './app-version.ts'
+import { shareableDoctorFailureReport, shareableDoctorReport } from './shareable-doctor.ts'
 
 type Action = 'doctor' | 'logout' | 'status'
 
@@ -36,6 +37,7 @@ function printHelp(): void {
     '  --provider  which product to inspect; defaults to workbuddy',
     `              one of: ${WORKBUDDY_VARIANTS.map(variant => variant.id).join(', ')}`,
     '  --json      emit one secret-free JSON document (doctor/status only)',
+    '  --share     emit a copy-safe JSON doctor report (doctor only)',
     '',
   ].join('\n'))
 }
@@ -70,7 +72,7 @@ function fallbackCount(variant: WorkBuddyVariant): number {
   return variant.id === CN_VARIANT.id ? FALLBACK_WORKBUDDY_MODELS.length : FALLBACK_WORKBUDDY_AI_MODELS.length
 }
 
-async function doctor(jsonOutput: boolean, variant: WorkBuddyVariant): Promise<number> {
+async function doctor(jsonOutput: boolean, share: boolean, variant: WorkBuddyVariant): Promise<number> {
   const store = makeStore(variant)
   const status = await store.status()
   const desktopPresent = await store.desktopFilePresent()
@@ -134,14 +136,29 @@ async function doctor(jsonOutput: boolean, variant: WorkBuddyVariant): Promise<n
       ...driftWarning === undefined ? [] : [driftWarning],
     ],
   }
-  if (jsonOutput) {
-    printJson({ ...report, ...decryptionNote === undefined ? {} : { decryptionNote } })
+  if (share) {
+    printJson(shareableDoctorReport({
+      version: WORKBUDDY_CONNECT_VERSION,
+      runtime: process.version,
+      platform: process.platform,
+      architecture: process.arch,
+      provider: variant.id,
+      desktopAuthFile: { present: desktopPresent, format: desktopFormat },
+      signIn: status.state,
+      reasonCode: status.reasonCode,
+      hostHeartbeat: { present: heartbeat !== undefined, processAlive: hostAlive },
+      fallbackModels: fallbackCount(variant),
+      ...(appVersion === undefined ? {} : { appVersionSource: appVersion.source }),
+    }))
+  } else if (jsonOutput) {
+    printJson({ ...report, ...(status.reasonCode === undefined ? {} : { reasonCode: status.reasonCode }), ...decryptionNote === undefined ? {} : { decryptionNote } })
   } else {
     process.stdout.write([
       `${variant.displayName} Connect ${WORKBUDDY_CONNECT_VERSION} on ${process.version}`,
       `Desktop auth file: ${report.desktopAuthFile.present ? 'present' : 'missing'} — ${desktopFormat} (${report.desktopAuthFile.path})`,
       `Host bundle: ${hostAlive ? `running (pid ${heartbeat!.pid})` : heartbeat !== undefined ? 'stale heartbeat (process exited)' : 'not started'}`,
       `Sign-in state: ${report.signIn}`,
+      ...(status.reasonCode === undefined ? [] : [`Sign-in reason code: ${status.reasonCode}`]),
       `Static fallback models: ${report.fallbackModels}`,
       ...drift === undefined ? [] : [`Manifest version: ${drift.manifest} (loaded build is ${drift.build})`],
       ...appVersion === undefined ? [] : [`Catalog User-Agent version: ${appVersion.version} (${appVersion.source})`],
@@ -161,7 +178,7 @@ async function status(jsonOutput: boolean, variant: WorkBuddyVariant): Promise<n
   const hostState = hostAlive ? 'running' : heartbeat !== undefined ? 'stale' : 'not-started'
   if (authStatus.state !== 'signed-in') {
     if (jsonOutput) {
-      printJson({ schemaVersion: JSON_SCHEMA_VERSION, package: 'dsh-workbuddy-connect-community', version: WORKBUDDY_CONNECT_VERSION, provider: variant.id, status: 'signed-out', hostBundle: hostState })
+      printJson({ schemaVersion: JSON_SCHEMA_VERSION, package: 'dsh-workbuddy-connect-community', version: WORKBUDDY_CONNECT_VERSION, provider: variant.id, status: 'signed-out', ...authStatus.reasonCode === undefined ? {} : { reasonCode: authStatus.reasonCode }, hostBundle: hostState })
     } else {
       process.stdout.write(`${variant.displayName} Connect: signed out\nHost bundle: ${hostState}\n`)
     }
@@ -230,6 +247,7 @@ export async function run(argv: readonly string[]): Promise<number> {
   }
   const action = rawAction as Action
   const jsonOutput = flags.includes('--json')
+  const share = flags.includes('--share')
 
   // `--provider <id>` (or `--provider=<id>`); absent means the CN provider, so
   // every existing invocation keeps its behaviour.
@@ -255,15 +273,15 @@ export async function run(argv: readonly string[]): Promise<number> {
     )
     return 1
   }
-  const unknown = rest.filter(flag => flag !== '--json')
-  if (unknown.length > 0 || (jsonOutput && action === 'logout')) {
+  const unknown = rest.filter(flag => flag !== '--json' && flag !== '--share')
+  if (unknown.length > 0 || (jsonOutput && action === 'logout') || (share && action !== 'doctor')) {
     process.stderr.write(`dsh-workbuddy-connect-community: invalid options for ${action}: ${flags.join(' ')}\n`)
     return 1
   }
   try {
     switch (action) {
       case 'doctor':
-        return await doctor(jsonOutput, variant)
+        return await doctor(jsonOutput, share, variant)
       case 'status':
         return await status(jsonOutput, variant)
       case 'logout': {
@@ -279,6 +297,16 @@ export async function run(argv: readonly string[]): Promise<number> {
       }
     }
   } catch (error: unknown) {
+    if (action === 'doctor' && share) {
+      printJson(shareableDoctorFailureReport({
+        version: WORKBUDDY_CONNECT_VERSION,
+        runtime: process.version,
+        platform: process.platform,
+        architecture: process.arch,
+        provider: variant.id,
+      }))
+      return 1
+    }
     process.stderr.write(`dsh-workbuddy-connect-community: ${action} failed: ${safeMessage(error)}\n`)
     return 1
   }
