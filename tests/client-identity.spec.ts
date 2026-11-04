@@ -6,6 +6,7 @@ import { FALLBACK_APP_VERSION, type AppVersionInfo } from '../src/app-version.ts
 import {
   FALLBACK_CN_APP_VERSION,
   chatUserAgent,
+  readWindowsAppVersion,
   readCliVersion,
   resolveChatIdentity,
   validCliVersion,
@@ -18,6 +19,30 @@ import {
  */
 
 const CLEANUP: (() => Promise<void>)[] = []
+
+describe('Windows app metadata', () => {
+  it('does not trust malformed or oversized archive headers', async () => {
+    const root = await tempDir('wb-win-invalid-')
+    await mkdir(join(root, 'resources'), { recursive: true })
+    const prefix = Buffer.alloc(16)
+    prefix.writeUInt32LE(4, 0); prefix.writeUInt32LE(0xffffffff, 4); prefix.writeUInt32LE(0xffffffff, 12)
+    await writeFile(join(root, 'resources', 'app.asar'), prefix)
+    expect(await readWindowsAppVersion(root)).toBeUndefined()
+  })
+  it('reads the WorkBuddy package version from a bounded asar archive', async () => {
+    const root = await tempDir('wb-win-app-')
+    await mkdir(join(root, 'resources'), { recursive: true })
+    const pkg = Buffer.from(JSON.stringify({ name: '@genie/workbuddy-desktop', version: '5.8.4' }))
+    const header = Buffer.from(JSON.stringify({ files: { 'package.json': { size: pkg.length, offset: '0' } } }))
+    const padded = (header.length + 3) & ~3
+    const prefix = Buffer.alloc(16 + padded)
+    prefix.writeUInt32LE(4, 0); prefix.writeUInt32LE(8 + padded, 4)
+    prefix.writeUInt32LE(4 + padded, 8); prefix.writeUInt32LE(header.length, 12)
+    header.copy(prefix, 16)
+    await writeFile(join(root, 'resources', 'app.asar'), Buffer.concat([prefix, pkg]))
+    expect(await readWindowsAppVersion(root)).toBe('5.8.4')
+  })
+})
 
 afterEach(async () => {
   for (const dispose of CLEANUP.splice(0)) await dispose()
@@ -72,6 +97,13 @@ describe('validCliVersion', () => {
 })
 
 describe('readCliVersion', () => {
+  it('reads the CLI metadata from a Windows WorkBuddy installation', async () => {
+    const bundle = await tempDir('wb-win-cli-')
+    const cli = join(bundle, 'resources', 'app.asar.unpacked', 'cli')
+    await mkdir(cli, { recursive: true })
+    await writeFile(join(cli, 'package.json'), JSON.stringify({ version: '0.0.0', publishConfig: { customPackage: { version: '2.161.0' } } }))
+    expect(await readCliVersion(bundle)).toBe('2.161.0')
+  })
   it('prefers a valid non-placeholder version', async () => {
     const bundle = await bundleWithCliPackage({
       version: '3.0.0',
@@ -96,6 +128,21 @@ describe('readCliVersion', () => {
 })
 
 describe('resolveChatIdentity (CN)', () => {
+  it('resolves verified Windows installation metadata and CLI version', async () => {
+    const dir = await tempDir('wb-win-id-')
+    const resources = join(dir, 'resources')
+    await mkdir(join(resources, 'app.asar.unpacked', 'cli'), { recursive: true })
+    await writeFile(join(resources, 'app.asar.unpacked', 'cli', 'package.json'), JSON.stringify({ version: '2.161.0' }))
+    const pkg = Buffer.from(JSON.stringify({ name: '@genie/workbuddy-desktop', version: '5.8.4' }))
+    const header = Buffer.from(JSON.stringify({ files: { 'package.json': { size: pkg.length, offset: '0' } } }))
+    const padded = (header.length + 3) & ~3
+    const prefix = Buffer.alloc(16 + padded)
+    prefix.writeUInt32LE(4, 0); prefix.writeUInt32LE(8 + padded, 4)
+    prefix.writeUInt32LE(4 + padded, 8); prefix.writeUInt32LE(header.length, 12); header.copy(prefix, 16)
+    await writeFile(join(resources, 'app.asar'), Buffer.concat([prefix, pkg]))
+    const identity = await resolveChatIdentity('cn', { platform: 'win32', windowsElectronPath: async () => join(dir, 'WorkBuddy.exe'), cnSavedPath: join(dir, 'cache.json') })
+    expect(identity).toEqual({ clientVersion: '5.8.4', cliVersion: '2.161.0' })
+  })
   it('uses the installed bundle and reads its CLI version, but persists the App version only', async () => {
     const dir = await tempDir('wb-cn-')
     const saved = join(dir, 'cn.json')

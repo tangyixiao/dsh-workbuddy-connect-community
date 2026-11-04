@@ -630,15 +630,10 @@ function ModelOfferRow({ model, t }: {
  * plain capacity list rather than editing a bucket every such account would
  * share.
  *
- * Purely a report of the upstream's own numbers otherwise. The plugin offers
- * no tier picker: the CN catalog declares one capacity per model and publishes
- * no alternatives, so a menu there would mean inventing client-side policy.
- * The international document does declare alternatives (`supportedLengths`),
- * and they are shown as a secondary figure rather than merged into one number —
- * the default is the budget actually requested, while the larger value is a
- * ceiling the upstream would accept.
+ * When the upstream declares multiple windows, the account can choose a tier.
+ * The chosen tier is the context budget DSH receives for that model.
  */
-function ContextTable({ models, t, useMaximumContextWindow, contextPreferenceDisabled, onUseMaximumContextWindow, visibility, visibilityControlsDisabled, visibilityToggling, onVisibilityToggle }: {
+function ContextTable({ models, t, useMaximumContextWindow, contextPreferenceDisabled, onUseMaximumContextWindow, visibility, visibilityControlsDisabled, visibilityToggling, onVisibilityToggle, onContextWindow }: {
   models: readonly WorkBuddyWebModelBadge[] | undefined
   t: WorkBuddyPluginCardInjected['t']
   useMaximumContextWindow?: boolean
@@ -652,6 +647,7 @@ function ContextTable({ models, t, useMaximumContextWindow, contextPreferenceDis
   /** The models whose visibility writes are in flight; only those rows lock. */
   visibilityToggling: ReadonlySet<string>
   onVisibilityToggle?: (modelId: string, visible: boolean) => void
+  onContextWindow?: (modelId: string, window: number) => void
 }): React.ReactNode {
   const rows = [...(models ?? [])].sort((a, b) => {
     // Largest first, the ordering this table has always used; rows without a
@@ -731,7 +727,12 @@ function ContextTable({ models, t, useMaximumContextWindow, contextPreferenceDis
                 </span>
               </span>
               <span style={modelOfferStyle}>
-                {capacity === undefined
+                {visibility !== undefined && onContextWindow !== undefined && (model.supportedContextWindows?.length ?? 0) > 1 && capacity !== undefined ? (
+                  <select aria-label={`${model.name} ${t('contextHeading')}`} value={capacity} disabled={contextPreferenceDisabled} onChange={event => onContextWindow(model.id, Number(event.currentTarget.value))}>
+                    {!model.supportedContextWindows!.includes(capacity) ? <option value={capacity}>{formatTokens(capacity)}</option> : null}
+                    {model.supportedContextWindows!.map(window => <option key={window} value={window}>{formatTokens(window)}</option>)}
+                  </select>
+                ) : capacity === undefined
                   ? <span style={modelRateStyle} aria-label={t('contextUnknown')}>—</span>
                   : <span style={{ textAlign: 'right' }}>{formatTokens(capacity)}</span>}
                 {alternative !== undefined
@@ -1127,7 +1128,7 @@ export function WorkBuddyPluginCard({ t, variant = CN_CARD_VARIANT }: WorkBuddyP
    * the host never accepts a prompt, a sentinel, or a model outside its own
    * catalog from here.
    */
-  const control = useCallback(async (action: { action: 'probe'; model: string } | { action: 'clear' } | { action: 'set-maximum-context-window'; enabled: boolean } | { action: 'set-model-visibility'; model: string; visible: boolean; account: string }): Promise<void> => {
+  const control = useCallback(async (action: { action: 'probe'; model: string } | { action: 'clear' } | { action: 'set-maximum-context-window'; enabled: boolean } | { action: 'set-model-visibility'; model: string; visible: boolean; account: string } | { action: 'set-model-context-window'; model: string; window: number; account: string }): Promise<void> => {
     const key = status?.status === 'signed-in' ? status.probeKey : undefined
     if (key === undefined) return
     // A visibility toggle runs on its own per-row in-flight set so the
@@ -1157,14 +1158,14 @@ export function WorkBuddyPluginCard({ t, variant = CN_CARD_VARIANT }: WorkBuddyP
       // the host did not persist the toggle, and the checkbox must not be left
       // claiming it did — the thrown reason lands beside the list and the
       // document's next read restores the honest state.
-      if ((action.action === 'set-maximum-context-window' || action.action === 'set-model-visibility')
+      if ((action.action === 'set-maximum-context-window' || action.action === 'set-model-visibility' || action.action === 'set-model-context-window')
         && (typeof value !== 'object' || value === null || (value as Record<string, unknown>)['state'] !== 'updated')) {
         const state = typeof value === 'object' && value !== null ? (value as Record<string, unknown>)['state'] : undefined
         // A stale write (the account switched under the open card) is its own
         // outcome: explain it in the user's language and re-read now, so the
         // checkboxes converge on the new account's section instead of waiting
         // for the next poll while still showing the departed account's list.
-        if (action.action === 'set-model-visibility' && state === 'stale-account') {
+        if ((action.action === 'set-model-visibility' || action.action === 'set-model-context-window') && state === 'stale-account') {
           await refresh(controller.signal)
           throw new Error(t('visibilityStaleAccount'))
         }
@@ -1394,6 +1395,7 @@ export function WorkBuddyPluginCard({ t, variant = CN_CARD_VARIANT }: WorkBuddyP
                             onUseMaximumContextWindow: (enabled: boolean) => { void control({ action: 'set-maximum-context-window', enabled }) },
                           }
                           : {}}
+                        onContextWindow={(modelId, window) => { void control({ action: 'set-model-context-window', model: modelId, window, account: status.visibility?.account ?? '' }) }}
                         visibility={status.visibility}
                         visibilityControlsDisabled={busy}
                         visibilityToggling={togglingModels}

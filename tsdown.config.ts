@@ -20,6 +20,7 @@ const VERSION_DEFINE = { __DSH_WORKBUDDY_VERSION__: JSON.stringify(PACKAGE_VERSI
 const CLIENT_EXTERNALS = [
   'react',
   'react/jsx-runtime',
+  'react-dom',
   '@deepseek-ai/cordis',
   '@deepseek-ai/dsh-client-ui-slots',
   '@deepseek-ai/dsh-client-locale/client',

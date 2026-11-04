@@ -6,6 +6,23 @@ function messagesOf(prepared: string): Record<string, unknown>[] {
 }
 
 describe('community system prose compatibility', () => {
+  it('rewrites only the known path-reference instruction while preserving protected suffixes', () => {
+    const original = 'Tokens prefixed with @ are paths the user explicitly referenced. Relative paths resolve from the workspace root; absolute paths identify files or directories on the host.'
+    const replacement = 'An @ mention identifies a path explicitly supplied by the user. Resolve relative references from the workspace root and treat absolute references as host file or directory paths.'
+    const suffix = ' Preserve "example.txt" and C:\\Apps\\DeepSeek Harness\\src.'
+    const source = JSON.stringify({ messages: [{ role: 'system', content: original + suffix }, { role: 'user', content: original }] })
+    const prepared = prepareChatBody(source)
+    expect(messagesOf(prepared)[0]?.['content']).toBe(replacement + suffix)
+    expect(messagesOf(prepared)[1]?.['content']).toBe(original)
+    expect(prepareCnChatBody(prepared)).toBe(prepared)
+  })
+
+  it('preserves the known path-reference text inside quotes and fenced code', () => {
+    const original = 'Tokens prefixed with @ are paths the user explicitly referenced. Relative paths resolve from the workspace root; absolute paths identify files or directories on the host.'
+    const content = [`"${original}"`, '```text', original, '```'].join('\n')
+    const prepared = prepareChatBody(JSON.stringify({ messages: [{ role: 'system', content }] }))
+    expect(messagesOf(prepared)[0]?.['content']).toBe(content)
+  })
   it('rewrites generated developer prose after converting its role to system', () => {
     const prepared = prepareChatBody(JSON.stringify({
       messages: [{ role: 'developer', content: 'You are running DeepSeek Harness locally.' }],
@@ -101,6 +118,13 @@ describe('community system prose compatibility', () => {
     expect(messagesOf(prepared)[0]?.['content']).toBe(
       `${prefix.replace('DeepSeek Harness', 'local agent runtime')}${suffix}`,
     )
+  })
+
+  it('rewrites the first-party identity when the same line contains protected paths and quotes', () => {
+    const prefix = 'You are an AI agent powered by DeepSeek Harness.'
+    const suffix = ' Preserve "DeepSeek Harness.md" and C:\\Apps\\DeepSeek Harness\\src verbatim.'
+    const prepared = prepareChatBody(JSON.stringify({ messages: [{ role: 'system', content: prefix + suffix }] }))
+    expect(messagesOf(prepared)[0]?.['content']).toBe('You are an AI agent powered by the local agent runtime.' + suffix)
   })
 
   it('does not rewrite the measured DSH sentence when quoted, path-prefixed, or fenced', () => {

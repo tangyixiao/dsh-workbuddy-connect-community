@@ -111,6 +111,12 @@ describe('Composer model probe', () => {
   const buttonLabels = () => button().map(node => node.children.join(''))
   const tooltips = () => view!.root.findAllByProps({ role: 'tooltip' })
 
+  it('does not render the context selector in the composer toolbar', async () => {
+    statusBody = { status: 'signed-in', probeKey: 'test-key', visibility: { account: 'a', disabled: [] }, models: [{ id: 'glm-5.2', name: 'GLM-5.2', contextWindow: 960000, supportedContextWindows: [300000, 600000, 960000] }] }
+    await mount()
+    expect(view!.root.findAllByType('select')).toHaveLength(0)
+  })
+
   it('does not read status or show an entry for another provider', async () => {
     select('other', 'glm-5.2')
     await mount()
