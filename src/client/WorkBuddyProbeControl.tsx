@@ -366,9 +366,12 @@ function ModelProbe({ model, card, label, t }: {
    */
   const [creditFailed, setCreditFailed] = useState(false)
   const [contextBusy, setContextBusy] = useState(false)
+  const [contextOpen, setContextOpen] = useState(false)
   const [contextError, setContextError] = useState<string>()
   const [contextMenu, setContextMenu] = useState<HTMLElement>()
   const contextAnchor = useRef<HTMLSpanElement>(null)
+  const contextPanel = useRef<HTMLDivElement>(null)
+  const contextRow = useRef<HTMLButtonElement>(null)
   /** Whether a manual credit refresh is in flight, for the ↻'s busy state. */
   const [refreshing, setRefreshing] = useState(false)
   const inFlight = useRef(false)
@@ -529,6 +532,15 @@ function ModelProbe({ model, card, label, t }: {
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded', 'aria-controls', 'role'] })
     return () => observer.disconnect()
   }, [card.id, model])
+  useEffect(() => { setContextOpen(false) }, [contextMenu])
+  useEffect(() => {
+    if (!contextOpen || contextMenu === undefined) return
+    const rows = Array.from(contextMenu.children).filter((element): element is HTMLElement => element instanceof HTMLElement && element.getAttribute('role') === 'menuitem')
+    const old = rows.map(row => ({ hidden: row.hidden, display: row.style.display }))
+    rows.forEach(row => { row.hidden = true; row.style.display = 'none' })
+    contextPanel.current?.querySelector<HTMLButtonElement>('button[aria-checked="true"]')?.focus()
+    return () => rows.forEach((row, index) => { row.hidden = old[index]?.hidden ?? false; row.style.display = old[index]?.display ?? '' })
+  }, [contextMenu, contextOpen])
   const setContextWindow = async (window: number): Promise<void> => {
     if (contextAccount === undefined || contextKey === undefined || contextBusy) return
     setContextBusy(true)
@@ -544,6 +556,7 @@ function ModelProbe({ model, card, label, t }: {
         throw new Error(t('requestFailed'))
       }
       await refresh()
+      if (mounted.current) { setContextOpen(false); requestAnimationFrame(() => contextRow.current?.focus()) }
     } catch {
       if (mounted.current) setContextError(t('requestFailed'))
     } finally {
@@ -555,6 +568,8 @@ function ModelProbe({ model, card, label, t }: {
   const hostLabelClass = hostRow?.children[0]?.getAttribute('class') ?? undefined
   const hostValueClass = hostRow?.children[1]?.getAttribute('class') ?? undefined
   const hostChevronClass = hostRow?.children[2]?.getAttribute('class') ?? undefined
+  const stylePrefix = hostRow?.className.split(/\s+/).find(value => value.endsWith('_cell'))?.slice(0, -5)
+  const hostClass = (suffix: string): string | undefined => stylePrefix === undefined ? undefined : `${stylePrefix}_${suffix}`
   const text = tooltipText(t, model, { busy, result, failed })
   const disabled = busy || probe?.running === true || key === undefined
   // Both bubbles and the tooltip anchor to the same spot above the control, so
@@ -586,17 +601,37 @@ function ModelProbe({ model, card, label, t }: {
 
       {credit === undefined ? null : <span style={creditStyle}>{credit}</span>}
       {contextMenu !== undefined && contextAccount !== undefined && contextKey !== undefined && contextModel?.contextWindow !== undefined && (contextModel.supportedContextWindows?.length ?? 0) > 1 ? createPortal(
-        <label className={hostRow?.className} style={hostRow === null || hostRow === undefined ? { display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 8px', fontSize: 13 } : undefined}>
-          <span className={hostLabelClass}>{t('contextHeading')}</span>
-          <select className={hostValueClass} aria-label={t('contextHeading')} value={contextModel.contextWindow} disabled={contextBusy}
-            style={{ appearance: 'none', background: 'transparent', border: 0, outline: 0, font: 'inherit', cursor: 'pointer', textAlign: 'right' }}
-            onChange={event => { void setContextWindow(Number(event.currentTarget.value)) }}>
-            {!contextModel.supportedContextWindows!.includes(contextModel.contextWindow) ? <option value={contextModel.contextWindow}>{contextModel.contextWindow}</option> : null}
-            {contextModel.supportedContextWindows!.map(window => <option key={window} value={window}>{window >= 1000 && window % 1000 === 0 ? `${window / 1000}K` : window}</option>)}
-          </select>
-          <svg className={hostChevronClass} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
-          {contextError === undefined ? null : <span role="alert">{contextError}</span>}
-        </label>, contextMenu
+        contextOpen ? (
+          <div ref={contextPanel} role="group" aria-label={t('contextHeading')} onKeyDown={event => {
+            if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setContextOpen(false); requestAnimationFrame(() => contextRow.current?.focus()) }
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault(); event.stopPropagation()
+              const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="menuitemradio"]:not(:disabled)'))
+              const current = options.indexOf(document.activeElement as HTMLButtonElement)
+              options[(current + (event.key === 'ArrowDown' ? 1 : options.length - 1) + options.length) % options.length]?.focus()
+            }
+          }}>
+            <button type="button" className={hostRow?.className} onClick={() => { setContextOpen(false); requestAnimationFrame(() => contextRow.current?.focus()) }}>
+              <svg className={hostChevronClass} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m15 5-7 7 7 7" /></svg>
+              <span className={hostLabelClass}>{t('contextHeading')}</span>
+            </button>
+            {contextModel.supportedContextWindows!.map(window => (
+              <button key={window} type="button" role="menuitemradio" aria-checked={window === contextModel.contextWindow} disabled={contextBusy}
+                className={[hostClass('option'), window === contextModel.contextWindow ? hostClass('selected') : undefined].filter(Boolean).join(' ')}
+                onClick={() => { void setContextWindow(window) }}>
+                <span className={hostClass('optionCopy')}><span className={hostClass('modelName')}>{window >= 1000 && window % 1000 === 0 ? `${window / 1000}K` : window}</span></span>
+                <span className={hostClass('check')}>{window === contextModel.contextWindow ? '✓' : null}</span>
+              </button>
+            ))}
+            {contextError === undefined ? null : <span role="alert">{contextError}</span>}
+          </div>
+        ) : (
+          <button ref={contextRow} type="button" role="menuitem" data-workbuddy-context-row className={hostRow?.className} disabled={contextBusy} onClick={() => setContextOpen(true)}>
+            <span className={hostLabelClass}>{t('contextHeading')}</span>
+            <span className={hostValueClass}>{contextModel.contextWindow >= 1000 && contextModel.contextWindow % 1000 === 0 ? `${contextModel.contextWindow / 1000}K` : contextModel.contextWindow}</span>
+            <svg className={hostChevronClass} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+          </button>
+        ), contextMenu
       ) : null}
 
       {visible && (

@@ -8,17 +8,17 @@
 
 ## 安装或替换
 
-正式版 **`0.1.10`** 的 DSH 声明范围为 **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5`**，只包含这三个版本；rc.4、后续 RC、正式版及 0.2.2 / 0.3 需要另行验证。该版本保留 rc.5 兼容声明，并在模型菜单的“模型”和“推理等级”下方及插件上下文标签页提供上游声明的窗口档位选择。选择按版本、账号和模型保存，直接影响 DSH 的上下文预算；模型不提供档位时不显示选择框。国内 CLI 目录缺少档位时，仅使用当前个人账号最近 24 小时内的桌面产品配置，按模型 ID 和最大输入上限精确匹配；无可验证配置时不展示选项。Windows 国内版已通过只读目录核验，返回 16 个模型，用户已确认 DSH 模型列表显示；真实模型生成及 WorkBuddy AI 国际版的实时请求尚未验收。macOS 和 Linux 尚未进行本分叉的实时验证。
+正式版 **`0.1.11`** 的 DSH 声明范围为 **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5`**，只包含这三个版本；rc.4、后续 RC、正式版及 0.2.2 / 0.3 需要另行验证。该版本保留 rc.5 兼容声明，并在模型菜单的“模型”和“推理等级”下方及插件上下文标签页提供上游声明的窗口档位选择。选择按版本、账号和模型保存，直接影响 DSH 的上下文预算；模型不提供档位时不显示选择框。国内 CLI 目录缺少档位时，仅使用当前个人账号最近 24 小时内的桌面产品配置，按模型 ID 和最大输入上限精确匹配；无可验证配置时不展示选项。Windows 国内版已通过只读目录核验，返回 16 个模型，用户已确认 DSH 模型列表显示；真实模型生成及 WorkBuddy AI 国际版的实时请求尚未验收。macOS 和 Linux 尚未进行本分叉的实时验证。
 
 **DSH Desktop**：在「扩展 → 插件管理 → 添加插件」中选择下载的 `.tgz` 文件完成安装或更新。Desktop profile 由桌面应用管理；下面的 CLI 示例用于独立 Web profile。安装后先保持社区版禁用，停用原版 `dsh-workbuddy-connect`，再启用社区版；保留原版及配置以便回退。原版与社区版只能启用一份，避免重复注册 provider。
 
-从 [GitHub 正式发布](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.10) 下载并按 DSH 支持的插件安装方式安装独立包：
+从 [GitHub 正式发布](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.11) 下载并按 DSH 支持的插件安装方式安装独立包：
 
 ```sh
-dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.10/dsh-workbuddy-connect-community-0.1.10.tgz
+dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.11/dsh-workbuddy-connect-community-0.1.11.tgz
 ```
 
-如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。正式版也发布到 [npm](https://www.npmjs.com/package/dsh-workbuddy-connect-community)。
+如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。[npm](https://www.npmjs.com/package/dsh-workbuddy-connect-community) 也提供该插件；0.1.11 已提交发布，若 npm 尚未显示，请使用上方 GitHub Release 并稍后重试。
 
 ### 与 ZCode 共存
 
@@ -32,7 +32,7 @@ dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect
 
 ## 诊断与可分享报告
 
-以下 `--share` 功能已合并到主分支，尚未包含在 0.1.10 正式发布包中。运行 `dsh-workbuddy-connect-community doctor --share` 可生成可复制的 JSON 诊断报告；国际版使用 `dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai`。该报告只包含版本、运行时、平台、架构、provider、登录文件是否存在及格式、登录状态和已知原因码、主机心跳状态、内置模型数，以及安全的应用版本来源标记。报告不含本地路径、账号标识、进程号、时间戳或自由文本错误。`readiness.authentication` 的 `credential-found` 仅表示凭据可被本地解析，不验证访问令牌是否仍有效，也不尝试刷新；`readiness.liveInference` 固定为 `not-tested`，命令不会发送模型请求。若本地诊断读取失败，命令仍会输出仅含固定 `diagnostic-unavailable` 错误码的 JSON。报告不代表服务可用。
+以下 `--share` 功能包含在 0.1.11 中，0.1.10 包不包含该功能。运行 `dsh-workbuddy-connect-community doctor --share` 可生成可复制的 JSON 诊断报告；国际版使用 `dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai`。该报告只包含版本、运行时、平台、架构、provider、登录文件是否存在及格式、登录状态和已知原因码、主机心跳状态、内置模型数，以及安全的应用版本来源标记。报告不含本地路径、账号标识、进程号、时间戳或自由文本错误。`readiness.authentication` 的 `credential-found` 仅表示凭据可被本地解析，不验证访问令牌是否仍有效，也不尝试刷新；`readiness.liveInference` 固定为 `not-tested`，命令不会发送模型请求。若本地诊断读取失败，命令仍会输出仅含固定 `diagnostic-unavailable` 错误码的 JSON。报告不代表服务可用。
 
 普通 `doctor` 输出仍用于本机排查；已知原因码是稳定枚举，可用于判断下一步。`no-credential` 表示没有可用登录凭据；`encrypted-credential-unreadable` 表示加密凭据无法解锁；`electron-binary-not-found`、`electron-binary-ambiguous`、`electron-binary-unavailable`、`electron-path-invalid` 和 `electron-discovery-incomplete` 分别说明辅助程序未找到、候选不唯一、平台未提供自动发现、指定路径无效或发现流程未完成；`credential-region-mismatch` 表示凭据属于另一个 WorkBuddy 产品。未知原因码不会进入共享报告。
 
