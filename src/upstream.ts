@@ -1,3 +1,4 @@
+import { mergeDesktopContextWindows, readDesktopContextProduct } from './desktop-context.ts'
 /**
  * WorkBuddy (CodeBuddy / copilot.tencent.com) upstream client: chat streaming,
  * token refresh, model catalog, and credit balance. The wire behavior is
@@ -1033,7 +1034,8 @@ export class WorkBuddyUpstreamClient {
     // The read is best-effort and separate: its failure costs the badges and
     // never the catalog.
     const promoBadges = international ? undefined : await this.fetchPromoBadges(credential, signal)
-    const models = parseModelCatalog(data, international, promoBadges)
+    const parsed = parseModelCatalog(data, international, promoBadges)
+    const models = international ? parsed : mergeDesktopContextWindows(parsed, readDesktopContextProduct(credential.uid, credential.enterpriseId))
     this.lastCatalog = {
       fetchedAtMs: Date.now(),
       source: international ? 'workbuddy-ai:app' : 'workbuddy:cli',

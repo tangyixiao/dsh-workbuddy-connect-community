@@ -18,7 +18,7 @@ describe('per-model context window', () => {
     expect(catalog.current()[0]?.contextWindow).toBe(960000)
   })
 })
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ContextWindowStore } from '../src/context-window-store.ts'
@@ -45,5 +45,31 @@ describe('saved context windows', () => {
       expect(reopened.get('account-c')).toEqual({})
       expect(readFileSync(file, 'utf8')).not.toContain('accessToken')
     } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+})
+import { mergeDesktopContextWindows, readDesktopContextProduct } from '../src/desktop-context.ts'
+
+describe('desktop context metadata', () => {
+  it('reads only a fresh personal snapshot for the requested account', () => {
+    const home = mkdtempSync(join(tmpdir(), 'wb-desktop-context-'))
+    try {
+      const dir = join(home, '.workbuddy', 'storage', 'user-account-a-personal', 'scoped', 'one')
+      mkdirSync(dir, { recursive: true })
+      const file = join(dir, 'wb-product-config.json')
+      const product = { models: [{ id: 'hy4free' }] }
+      writeFileSync(file, JSON.stringify({ 'product-config-snapshot': { data: product } }))
+      expect(readDesktopContextProduct('account-a', undefined, home)).toEqual(product)
+      expect(readDesktopContextProduct('account-b', undefined, home)).toBeUndefined()
+      expect(readDesktopContextProduct('account-a', 'enterprise', home)).toBeUndefined()
+      const old = new Date(Date.now() - 25 * 60 * 60 * 1000)
+      utimesSync(file, old, old)
+      expect(readDesktopContextProduct('account-a', undefined, home)).toBeUndefined()
+    } finally { rmSync(home, { recursive: true, force: true }) }
+  })
+  it('joins only exact model IDs with matching input caps and rejects malformed tiers', () => {
+    const models = [{ id: 'hy4free', name: 'Hy4', contextWindow: 960000, maxTokens: 64000, supportsImages: true }]
+    const config = { models: [{ id: 'hy4free', maxInputTokens: 960000, contextWindow: { defaultLength: 300000, supportedLengths: [300000, 600000, 960000, 2000000] } }, { id: 'hy4std', maxInputTokens: 960000, contextWindow: { supportedLengths: [300000, 960000] } }] }
+    expect(mergeDesktopContextWindows(models, config)[0]).toMatchObject({ contextWindow: 960000, supportedContextWindows: [300000, 600000, 960000] })
+    expect(mergeDesktopContextWindows(models, { models: [{ ...config.models[0], maxInputTokens: 1000000 }] })[0]?.supportedContextWindows).toBeUndefined()
   })
 })
