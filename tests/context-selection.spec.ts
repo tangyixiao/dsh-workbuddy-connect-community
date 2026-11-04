@@ -9,13 +9,13 @@ describe('per-model context window', () => {
       { id: 'plain', maxInputTokens: 192000, maxOutputTokens: 64000 },
     ], agents: [{ name: 'cli', models: ['hy4', 'plain'] }] }
     const rows = parseModelCatalog(document, false)
-    expect(rows[0]).toMatchObject({ contextWindow: 300000, supportedContextWindows: [300000, 600000, 960000] })
+    expect(rows[0]).toMatchObject({ contextWindow: 960000, supportedContextWindows: [300000, 600000, 960000] })
     const catalog = new WorkBuddyCatalog(rows)
     catalog.setContextWindows({ hy4: 600000 })
     expect(catalog.current()[0]?.contextWindow).toBe(600000)
     expect(catalog.current()[1]?.contextWindow).toBe(192000)
     catalog.setContextWindows({ hy4: 700000 })
-    expect(catalog.current()[0]?.contextWindow).toBe(300000)
+    expect(catalog.current()[0]?.contextWindow).toBe(960000)
   })
 })
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'

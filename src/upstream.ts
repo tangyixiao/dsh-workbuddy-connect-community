@@ -1437,7 +1437,7 @@ export function parseModelCatalog(
       byId.set(id, {
         id,
         name: typeof wrapped['name'] === 'string' && wrapped['name'] !== '' ? wrapped['name'] : id,
-        contextWindow: isObject(wrapped['contextWindow']) && positive(wrapped['contextWindow']['defaultLength'])
+        contextWindow: international && isObject(wrapped['contextWindow']) && positive(wrapped['contextWindow']['defaultLength'])
           ? wrapped['contextWindow']['defaultLength'] : input,
         ...(isObject(wrapped['contextWindow']) ? {
           ...isObject(wrapped['contextWindow']) && positive(wrapped['contextWindow']['defaultLength'])
