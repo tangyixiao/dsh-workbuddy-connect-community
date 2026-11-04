@@ -35,6 +35,8 @@
 
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import type { CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
+import { findContextMenu } from './context-menu.ts'
 import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import { CARD_VARIANTS, type WorkBuddyCardVariant, type WorkBuddyPluginCardInjected } from './WorkBuddyPluginCard.tsx'
 import { isWorkBuddyWebStatus } from './status-document.ts'
@@ -363,6 +365,10 @@ function ModelProbe({ model, card, label, t }: {
    * untouched — the two features merely share one document.
    */
   const [creditFailed, setCreditFailed] = useState(false)
+  const [contextBusy, setContextBusy] = useState(false)
+  const [contextError, setContextError] = useState<string>()
+  const [contextMenu, setContextMenu] = useState<HTMLElement>()
+  const contextAnchor = useRef<HTMLSpanElement>(null)
   /** Whether a manual credit refresh is in flight, for the ↻'s busy state. */
   const [refreshing, setRefreshing] = useState(false)
   const inFlight = useRef(false)
@@ -508,7 +514,47 @@ function ModelProbe({ model, card, label, t }: {
   // affordance whatever the document says, which is also how the control
   // recovers from an unreadable first read.
   const credit = creditFailed ? undefined : creditBadge(status, card, t)
+  const contextModel = status?.status === 'signed-in' ? status.models?.find(item => item.id === model) : undefined
+  const contextAccount = status?.status === 'signed-in' ? status.visibility?.account : undefined
+  const contextKey = status?.status === 'signed-in' ? status.probeKey : undefined
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return
+    const update = () => {
+      const anchor = contextAnchor.current
+      const menu = anchor === null ? undefined : findContextMenu(anchor, card.id, model)
+      setContextMenu(previous => previous === menu ? previous : menu)
+    }
+    update()
+    const observer = new MutationObserver(update)
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded', 'aria-controls', 'role'] })
+    return () => observer.disconnect()
+  }, [card.id, model])
+  const setContextWindow = async (window: number): Promise<void> => {
+    if (contextAccount === undefined || contextKey === undefined || contextBusy) return
+    setContextBusy(true)
+    setContextError(undefined)
+    try {
+      const response = await fetch(card.probePath, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-Workbuddy-Probe-Key': contextKey },
+        body: JSON.stringify({ action: 'set-model-context-window', model, account: contextAccount, window }),
+      })
+      const value: unknown = await response.json()
+      if (!response.ok || typeof value !== 'object' || value === null || (value as Record<string, unknown>)['state'] !== 'updated') {
+        throw new Error(t('requestFailed'))
+      }
+      await refresh()
+    } catch {
+      if (mounted.current) setContextError(t('requestFailed'))
+    } finally {
+      if (mounted.current) setContextBusy(false)
+    }
+  }
 
+  const hostRow = contextMenu?.querySelector<HTMLElement>(':scope > [role="menuitem"]')
+  const hostLabelClass = hostRow?.children[0]?.getAttribute('class') ?? undefined
+  const hostValueClass = hostRow?.children[1]?.getAttribute('class') ?? undefined
+  const hostChevronClass = hostRow?.children[2]?.getAttribute('class') ?? undefined
   const text = tooltipText(t, model, { busy, result, failed })
   const disabled = busy || probe?.running === true || key === undefined
   // Both bubbles and the tooltip anchor to the same spot above the control, so
@@ -519,6 +565,7 @@ function ModelProbe({ model, card, label, t }: {
 
   return (
     <span
+      ref={contextAnchor}
       style={wrapperStyle}
     >
       <button
@@ -538,6 +585,19 @@ function ModelProbe({ model, card, label, t }: {
       </button>
 
       {credit === undefined ? null : <span style={creditStyle}>{credit}</span>}
+      {contextMenu !== undefined && contextAccount !== undefined && contextKey !== undefined && contextModel?.contextWindow !== undefined && (contextModel.supportedContextWindows?.length ?? 0) > 1 ? createPortal(
+        <label className={hostRow?.className} style={hostRow === null || hostRow === undefined ? { display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 8px', fontSize: 13 } : undefined}>
+          <span className={hostLabelClass}>{t('contextHeading')}</span>
+          <select className={hostValueClass} aria-label={t('contextHeading')} value={contextModel.contextWindow} disabled={contextBusy}
+            style={{ appearance: 'none', background: 'transparent', border: 0, outline: 0, font: 'inherit', cursor: 'pointer', textAlign: 'right' }}
+            onChange={event => { void setContextWindow(Number(event.currentTarget.value)) }}>
+            {!contextModel.supportedContextWindows!.includes(contextModel.contextWindow) ? <option value={contextModel.contextWindow}>{contextModel.contextWindow}</option> : null}
+            {contextModel.supportedContextWindows!.map(window => <option key={window} value={window}>{window >= 1000 && window % 1000 === 0 ? `${window / 1000}K` : window}</option>)}
+          </select>
+          <svg className={hostChevronClass} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+          {contextError === undefined ? null : <span role="alert">{contextError}</span>}
+        </label>, contextMenu
+      ) : null}
 
       {visible && (
         <button

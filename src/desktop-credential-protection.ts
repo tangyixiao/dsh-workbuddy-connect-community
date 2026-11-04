@@ -1201,6 +1201,11 @@ export class WorkBuddyAtRestKeyProvider {
     return this.discoveredPath ?? this.defaultPath
   }
 
+  /** Resolve the verified installation path without starting the key helper. */
+  async installationPath(): Promise<string> {
+    return this.resolveElectronPath()
+  }
+
   /**
    * A protector key matching one of the requested envelope key ids. The first
    * id the cache answers wins; otherwise one spawn resolves the current key,

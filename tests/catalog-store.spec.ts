@@ -107,7 +107,14 @@ describe('WorkBuddyCatalogStore', () => {
   })
 
   it('survives an unwritable path without throwing', () => {
-    const store = new WorkBuddyCatalogStore({ path: '/proc/definitely-not-writable/catalog.json' })
+    const dir = mkdtempSync(join(tmpdir(), 'wb-catalog-blocked-'))
+    CLEANUP.push(dir)
+    // A regular file cannot be a parent directory on any supported platform.
+    // Using this fixture exercises the failed-write path without depending on
+    // a host-specific pseudo-filesystem or permission model.
+    const blockedParent = join(dir, 'not-a-directory')
+    writeFileSync(blockedParent, 'blocked')
+    const store = new WorkBuddyCatalogStore({ path: join(blockedParent, 'catalog.json') })
     // Saving is best-effort: the plugin has already served these models, and a
     // failed write must not surface as a crash.
     expect(() => store.set('uid-1:ent-1', { source: 's', fetchedAtMs: 1, models: [model('a')] })).not.toThrow()
