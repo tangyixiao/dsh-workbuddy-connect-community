@@ -30,6 +30,8 @@ The plugin reuses the desktop app's sign-in and service interfaces. Model catalo
 
 The package contains no account credentials, user sessions, or runtime data. Credentials are read from the local app or a credential copy stored by DSH itself.
 
+The current source authenticates both variants' Web status and control routes through DSH `connection.admit()` and permits only the Host owner. Anonymous or expired sessions receive 401; other principals receive 403. Controls also require the Host/Origin checks and `probeKey`. Responses are not cached. Without the Host `connection` service, these routes are not mounted; the provider and CLI remain available in headless profiles. This fix is not included in the 0.1.11 release linked above.
+
 ## Diagnostics and shareable reports
 
 The `--share` feature below is included in 0.1.11; the 0.1.10 package does not include it. Run `dsh-workbuddy-connect-community doctor --share` to print copyable JSON. For the international app, use `dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai`. The report is limited to package/runtime/platform/architecture versions, provider, auth-file presence and format, sign-in state and a known reason code, host heartbeat state, fallback model count, and a safe app-version source label. It omits local paths, account identifiers, process IDs, timestamps, and free-text errors. `readiness.authentication: credential-found` means the local credential parsed; it does not validate token freshness or attempt a refresh. `readiness.liveInference` is always `not-tested`: the command sends no model request. If a local diagnostic read fails, the command still prints JSON with only the fixed `diagnostic-unavailable` error code. The report does not establish service availability.

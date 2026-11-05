@@ -815,7 +815,7 @@ export function apply(ctx: Context, config: Config): void {
     runtime.invalidate()
   }
 
-  ctx.inject(['webServer'], webCtx => {
+  ctx.inject(['webServer', 'connection'], webCtx => {
     // One update route for the whole bundle: it answers this npm package's
     // public version metadata only, so it is per-plugin, not per-variant.
     const drift = versionDrift()

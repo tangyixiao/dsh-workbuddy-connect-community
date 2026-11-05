@@ -1,7 +1,7 @@
 /**
  * Same-origin update route for the WorkBuddy browser reminder: public version
- * metadata only (npm dist-tags + GitHub release list), loopback-gated exactly
- * like the status route, GET-only, never carrying credentials.
+ * metadata only (npm dist-tags + GitHub release list), loopback-gated,
+ * GET-only, never carrying credentials or control keys.
  *
  * @module dsh-workbuddy-connect/update-route
  */
