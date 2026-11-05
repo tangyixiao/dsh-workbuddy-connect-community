@@ -6,11 +6,9 @@ export const WORKBUDDY_STATUS_PATH = '/plugins/dsh-workbuddy-connect/status'
 /**
  * Plugin-owned probe control endpoint.
  *
- * Separate from the status route because it accepts writes: the status route's
- * loopback Host/Origin guard protects against a DNS-rebinding *page*, which is
- * not the same as authorizing a state-changing action. This route therefore
- * also requires the in-process key the browser half receives with the status
- * document.
+ * Both status and control routes require the Host's authenticated owner, plus
+ * loopback Host/Origin checks. Controls also require the in-process key the
+ * authenticated browser receives with the status document.
  */
 export const WORKBUDDY_PROBE_PATH = '/plugins/dsh-workbuddy-connect/probe'
 
@@ -28,9 +26,8 @@ export const WORKBUDDY_AI_PROBE_PATH = '/plugins/dsh-workbuddy-connect/ai/probe'
 /**
  * Same-origin route backing the browser's update reminder.
  *
- * Read-only like the status route, so the same loopback Host/Origin gate
- * applies; it answers public npm/GitHub metadata only and never token
- * material.
+ * Loopback Host/Origin gated; it answers public npm/GitHub metadata only.
+ * Unlike account status and controls it carries no private state or key.
  */
 export const WORKBUDDY_UPDATE_PATH = '/plugins/dsh-workbuddy-connect/update'
 
@@ -309,8 +306,8 @@ export type WorkBuddyWebStatus =
     visibility?: WorkBuddyWebVisibilitySection
     /**
      * In-process key authorizing probe control writes. Handed to the card with
-     * the status document (the card is same-origin and already had to pass the
-     * loopback guard); it is never persisted and rotates per process.
+     * the status document after Host owner authentication and loopback checks;
+     * it is never persisted and rotates per process.
      */
     probeKey?: string
   }

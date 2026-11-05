@@ -1,16 +1,14 @@
 /**
  * Probe control route: the only state-changing endpoint the plugin exposes.
  *
- * Two guards, because they stop different things (see `docs/reasoning-effort-probe-plan.md`
- * §6.4 and the v0.3.1 note in AGENTS.md about their exact scope):
+ * The registered route requires Host owner authentication before these
+ * additional guards. Loopback headers and the control key do not prove identity:
  *
  * 1. **Loopback Host + Origin**, shared with the status route. This drops
  *    DNS-rebinding pages, whose requests arrive addressed to the attacker's
  *    domain.
  * 2. **An in-process random key**, minted per process and handed only to the
- *    same-origin card. Loopback alone is *not* authentication — any local
- *    process can write `Host: 127.0.0.1` — so a route that spends the user's
- *    credit must prove the caller was told the key.
+ *    authenticated card. A leaked key alone cannot authorize requests.
  *
  * A probe request is never accepted with a prompt, a model id outside the
  * live catalog, or a sentinel from the browser: it is assembled entirely
@@ -25,6 +23,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import { withWorkBuddyHostAuth } from './host-route-auth.ts'
 import { hostIsLoopback, originIsLoopback } from './loopback.ts'
 import { WORKBUDDY_PROBE_PATH } from './status-paths.ts'
 import type { WorkBuddyProbeAction } from './status-paths.ts'
@@ -235,7 +234,7 @@ export function registerWorkBuddyProbeRoute(
     const dispose = ctx.webServer.register({
       kind: 'exact',
       path,
-      handler: workBuddyProbeHandler(deps, key),
+      handler: withWorkBuddyHostAuth(ctx, workBuddyProbeHandler(deps, key)),
     })
     return () => {
       dispose()

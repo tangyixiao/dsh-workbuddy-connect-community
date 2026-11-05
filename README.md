@@ -30,6 +30,8 @@ dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect
 
 本软件不包含账号凭据、用户会话或运行时数据。凭据只从本机应用或 DSH 自己保存的凭据副本读取。
 
+当前源码中的国内版与国际版 Web 状态、控制接口均通过 DSH `connection.admit()` 校验宿主登录身份，仅允许 owner 访问。匿名或登录已失效的请求返回 401，其他身份返回 403；控制请求还需通过 Host/Origin 和 `probeKey` 校验。响应禁止缓存；缺少宿主 `connection` 服务时不挂载这些接口，模型提供方和 CLI 仍可用于无 Web 的 profile。此修复尚未包含在上述 0.1.11 发布包中。
+
 ## 诊断与可分享报告
 
 以下 `--share` 功能包含在 0.1.11 中，0.1.10 包不包含该功能。运行 `dsh-workbuddy-connect-community doctor --share` 可生成可复制的 JSON 诊断报告；国际版使用 `dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai`。该报告只包含版本、运行时、平台、架构、provider、登录文件是否存在及格式、登录状态和已知原因码、主机心跳状态、内置模型数，以及安全的应用版本来源标记。报告不含本地路径、账号标识、进程号、时间戳或自由文本错误。`readiness.authentication` 的 `credential-found` 仅表示凭据可被本地解析，不验证访问令牌是否仍有效，也不尝试刷新；`readiness.liveInference` 固定为 `not-tested`，命令不会发送模型请求。若本地诊断读取失败，命令仍会输出仅含固定 `diagnostic-unavailable` 错误码的 JSON。报告不代表服务可用。

@@ -1,7 +1,7 @@
 /**
  * Same-origin status route for the WorkBuddy plugin card: sign-in state,
  * token expiry, and remaining credit, fetched by the browser half. The route
- * answers loopback browser requests only and never carries token material.
+ * requires an authenticated Host owner and a loopback browser request.
  *
  * @module dsh-workbuddy-connect/web-status
  */
@@ -14,6 +14,7 @@ import type { WorkBuddyUpstreamClient } from './upstream.ts'
 import { normalizeCredits } from './upstream.ts'
 import type { WorkBuddyModelInfo } from './catalog.ts'
 import { hostIsLoopback, originIsLoopback } from './loopback.ts'
+import { withWorkBuddyHostAuth } from './host-route-auth.ts'
 import { WORKBUDDY_STATUS_PATH } from './status-paths.ts'
 import type { WorkBuddyWebCatalog, WorkBuddyWebModelBadge, WorkBuddyWebProbeSection, WorkBuddyWebStatus, WorkBuddyWebVisibilitySection } from './status-paths.ts'
 
@@ -187,8 +188,8 @@ export async function workBuddyWebStatus(
     : withVisibility
   // Probe state rides the signed-in document so the card can render the
   // consent switches and results without a second request. The control key
-  // travels with it: this response already passed the loopback guard, and the
-  // key authorizes only probe control, never credentials or completions.
+  // travels with it: the registered route requires Host owner authentication
+  // before assembling this document. Loopback headers alone prove no identity.
   let probed: WorkBuddyWebStatus = statusWithModels
   if (deps.probe !== undefined) {
     // The preference is offered only when the getter can answer a value; a
@@ -245,7 +246,7 @@ export function registerWorkBuddyStatusRoute(ctx: Context, deps: WorkBuddyStatus
     const dispose = ctx.webServer.register({
       kind: 'exact',
       path,
-      handler: workBuddyStatusHandler(deps),
+      handler: withWorkBuddyHostAuth(ctx, workBuddyStatusHandler(deps)),
     })
     return () => {
       dispose()
