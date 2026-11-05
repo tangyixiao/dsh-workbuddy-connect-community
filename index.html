@@ -1,15 +1,81 @@
-<!doctype html><html lang="zh-CN" data-type="software" data-radius="sharp" data-buttons="solid" data-motion data-page-mode="short" data-project="dsh-workbuddy-connect-community"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="page-type" content="software"><meta name="site-kind" content="software"><title>WorkBuddy Connect · WorkBuddy 接入 DeepSeek Harness</title><meta name="description" content="复用本机 WorkBuddy 或 WorkBuddy AI 桌面登录，为 DeepSeek Harness 提供社区维护的模型连接。"><link rel="stylesheet" href="assets/system.css"><link rel="stylesheet" href="assets/ui/cards.css"><link rel="stylesheet" href="assets/motion/motion.css"><link rel="stylesheet" href="assets/layout/layout.css"><link rel="stylesheet" href="assets/fonts/fonts.css"><link rel="stylesheet" href="assets/page.css"><!-- <html lang="en" data-radius="sharp">; keep this <style> after the links: layout.css resets --ly-scale -->
-<style>
-:root {
-  --p-bg: #fafafa; --p-surface: #f0f1f3; --p-ink: #171717; --p-muted: #595959;
-  --p-accent: #1748ca; --p-accent-ink: #fafafa; --p-action: #1748ca; --p-action-ink: #fafafa;
-  --p-inv-bg: #171717; --p-inv-surface: #242424; --p-inv-ink: #fafafa; --p-inv-muted: #9b9b9b;
-  --p-inv-accent: #fafafa; --p-inv-accent-ink: #171717; --p-inv-action: #fafafa; --p-inv-action-ink: #171717;
-  --font-display: "Geist", system-ui, sans-serif;
-  --font-text: "Geist", system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --display-weight: 500;
-  --display-tracking: -0.035em;
-  --display-tracking-xl: -0.045em;
-}
-</style><style>html[data-theme="light"]{--p-bg:#fafafa;--p-surface:#f0f1f3;--p-ink:#171717;--p-muted:#595959;--p-accent:#1748ca;--p-accent-ink:#ffffff;--p-action:#1748ca;--p-action-ink:#ffffff;color-scheme:light}html[data-theme="dark"]{--p-bg:#131517;--p-surface:#202427;--p-ink:#f0f1f2;--p-muted:#b5bbc1;--p-accent:#a4c2ff;--p-accent-ink:#131517;--p-action:#a4c2ff;--p-action-ink:#131517;color-scheme:dark}</style><script src="assets/theme.js"></script><link rel="icon" href="favicon.svg" type="image/svg+xml"></head><body><!-- source: tangyixiao/dsh-workbuddy-connect-community; hero: product; brand/material override of dealer recorded in plans. --><header class="nav"><div class="wrap nav__bar"><a class="skip-link" href="#top">跳到正文</a><a class="nav__logo" href="#top">WorkBuddy Connect</a><nav class="nav__links" aria-label="章节导航"><div class="nav__item"><a class="nav__link" href="#work">项目内容</a></div><div class="nav__item"><a class="nav__link" href="docs.html">使用文档</a></div></nav><div class="nav__actions"><a class="btn btn--primary" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.12">获取插件</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="切换深浅色" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button></div><button class="nav__toggle" type="button" aria-expanded="false" aria-label="菜单"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div></header><main><section class="hero hero--product" id="top"><div class="wrap"><div class="hero-text hero__in"><div class="hero__head"><div><h1 id="hero-h">WorkBuddy 接入<br>DeepSeek Harness</h1></div><div class="product-intro"><p class="hero__lead">复用本机 WorkBuddy 或 WorkBuddy AI 桌面登录，为 DeepSeek Harness 提供社区维护的模型连接。</p><div class="btn-row"><a class="btn btn--primary" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.12">获取插件</a></div><p class="project-fact">社区版 0.1.12 · 两个桌面产品</p></div></div><div class="hero__stage material-stage"><a class="project-picture m-zoom picture--contain" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/1.png"><img src="assets/media/product-1.webp" alt="authentic product screenshot" fetchpriority="high"></a></div></div></div></section><section class="section ground-surface" id="work"><div class="wrap"><div class="section-head"><h2>项目里的主要内容</h2></div><div class="work-grid"><ul class="feature-rows"><li><h3>国内版与国际版 provider</h3><p>国内版与国际版各自复用对应桌面应用的登录状态。</p></li><li><h3>模型目录与额度显示</h3><p>从上游读取可用模型与额度，服务状态取决于账号。</p></li><li><h3>按模型选择上下文窗口</h3><p>有档位声明的模型可选择上下文窗口，设置按账号和模型保存。</p></li></ul><div class="work-material"><div class="supporting-pictures"><a class="project-picture picture--contain m-zoom" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/4.png"><img src="assets/media/product-2.webp" alt="authentic product screenshot"></a><a class="project-picture picture--contain m-zoom" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/7.png"><img src="assets/media/product-3.webp" alt="authentic product screenshot"></a></div></div></div></div></section></main><footer class="footer closing footer--columns" id="use"><div class="wrap"><div class="closing-head"><h2>源码与使用说明</h2><p>0.1.12 已发布，状态与控制接口要求宿主 owner 认证。社区分叉基于 Corrine Hu 的 MIT 项目；服务可用性取决于账号和上游。</p><a class="btn btn--primary" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.12">获取插件</a></div><div class="closing-directory"><div class="footer__grid"><div><p class="footer-name">WorkBuddy Connect</p><p>tangyixiao/dsh-workbuddy-connect-community</p></div><div class="resource-links"><a class="link" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/main/README.md">阅读使用文档</a><a class="link" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues">查看问题与反馈</a><a class="link" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/tree/main/assets">assets</a><a class="link" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/tree/main/lib">lib</a><a class="link" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/tree/main/scripts">scripts</a><a class="link" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/tree/main/src">src</a></div></div><div class="footer__legal"><span>© 2026 tangyixiao</span><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community">GitHub</a><details class="credits"><summary>图片来自项目仓库</summary><ul><li><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/1.png">product-1.webp</a></li><li><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/4.png">product-2.webp</a></li><li><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/7.png">product-3.webp</a></li></ul></details></div></div></div></footer><script type="module" src="assets/system.js"></script><script type="module" src="assets/motion/motion.js"></script><script type="module" src="assets/layout/layout.js"></script></body></html>
+<!doctype html><html lang="zh-CN" data-project="dsh-workbuddy-connect-community" data-family="flash"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="复用本机 WorkBuddy 或 WorkBuddy AI 桌面登录，为 DeepSeek Harness 提供社区维护的模型连接。"><meta name="color-scheme" content="light dark"><title>WorkBuddy Connect · 本机账号， 连接到 DSH。</title><link rel="stylesheet" href="assets/fonts/fonts.css"><link rel="stylesheet" href="assets/fonts/display.css"><link rel="stylesheet" href="assets/site.css"><link rel="stylesheet" href="assets/docs-v3.css"><link rel="stylesheet" href="assets/three/view3d.css"><link rel="stylesheet" href="assets/flagships.css"><link rel="stylesheet" href="assets/polish.css"><style>:root{--font-body:"Geist","PingFang SC","Microsoft YaHei",sans-serif;--font-text:var(--font-body);--model-accent:var(--accent);--font-display:"Space Grotesk","Songti SC","SimSun",serif;--font-mono:"Geist Mono","SFMono-Regular",Consolas,monospace}html[data-theme="light"]{--bg:#EEDDE1;--surface:#FFF5EE;--ink:#421B29;--muted:#765561;--accent:#9a244a;--accent-ink:#FFFFFF;--line:color-mix(in srgb,#421B29 19%,transparent);color-scheme:light}html[data-theme="dark"]{--bg:#241016;--surface:#3D1B28;--ink:#FFECE7;--muted:#c7a2ac;--accent:#f289a6;--accent-ink:#000000;--line:color-mix(in srgb,#FFECE7 19%,transparent);color-scheme:dark}</style><script src="assets/theme.js"></script><link rel="icon" type="image/svg+xml" href="favicon.svg"></head><body><header class="nav site-nav"><div class="wrap nav-inner"><a class="skip-link" href="#top">跳到正文</a><a class="site-brand" href="index.html">WorkBuddy Connect</a><nav class="site-links" aria-label="项目导航"><a href="docs.html">使用文档</a><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community">源代码</a></nav><div class="nav-controls"><a class="btn nav-cta" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.12">获取插件</a><button class="site-theme" type="button" data-theme-toggle aria-label="切换深浅色" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button><button class="site-menu-toggle" data-menu-toggle type="button" aria-label="菜单" aria-expanded="false" aria-controls="site-drawer"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 6h14M3 14h14"/></svg></button></div></div><nav class="site-drawer" id="site-drawer" hidden><a href="index.html">项目首页</a><a href="docs.html">使用文档</a><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community">查看源码</a><p class="drawer-note">WorkBuddy Connect</p></nav></header><main id="top"><section class="flash-workbuddy" aria-labelledby="wb-title">
+  <div class="wb-sheet">
+
+    <p class="wb-kicker">
+      <span class="wb-kicker__rule" aria-hidden="true"></span>
+      <span>DSH × WorkBuddy connector</span>
+      <span class="wb-kicker__ver">v0.1.12</span>
+    </p>
+
+    <div class="wb-poster">
+      <div>
+        <h1 class="wb-heading" id="wb-title">WorkBuddy Connect<span>本机账号，<br>连接到 DSH。</span></h1>
+        <p class="wb-deck">复用本机 WorkBuddy 或 WorkBuddy AI 桌面登录，为 DeepSeek Harness 提供社区维护的模型连接。</p>
+        <div class="wb-actions">
+          <a class="wb-cta" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.12">获取插件</a>
+          <a class="wb-alt" href="docs.html">使用文档</a>
+        </div>
+      </div>
+
+      <figure class="wb-stand">
+        <div class="project-3d" data-model="bridge" aria-label="3D cable and connector stand linking WorkBuddy and DeepSeek Harness"></div>
+        <div class="wb-stand__labels" aria-hidden="true">
+          <span><b>WORKBUDDY</b> DESKTOP LOGIN</span>
+          <span><b>DSH</b> PLUGIN HOST</span>
+        </div>
+        <figcaption class="flash-sr">A concept sculpture of the actual integration: the community plugin exposes the already-signed-in WorkBuddy or WorkBuddy AI desktop account to DeepSeek Harness as a model provider.</figcaption>
+      </figure>
+    </div>
+
+    <ul class="wb-facts">
+      <li class="wb-fact"><span class="wb-fact__n">01</span><h3>国内版与国际版 provider</h3><p>国内版与国际版各自复用对应桌面应用的登录状态。</p></li><li class="wb-fact"><span class="wb-fact__n">02</span><h3>模型目录与额度显示</h3><p>从上游读取可用模型与额度，服务状态取决于账号。</p></li><li class="wb-fact"><span class="wb-fact__n">03</span><h3>按模型选择上下文窗口</h3><p>有档位声明的模型可选择上下文窗口，设置按账号和模型保存。</p></li>
+    </ul>
+
+    <section class="wb-shot" aria-labelledby="wb-shot-title">
+      <div>
+        <h2 id="wb-shot-title">插件界面，<br>直接查看。</h2>
+        <p>在 DSH 中选择 WorkBuddy 或 WorkBuddy AI，按项目文档配置本机连接。</p>
+        <p class="wb-shot__note">截图来自项目仓库 · Windows 桌面社区版</p>
+      </div>
+      <div class="wb-media">
+        <div class="wb-media__frame"><a class="real-product-image" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/1.png"><img src="assets/media/product-1.webp" alt="authentic product screenshot" loading="lazy"></a><a class="real-product-image" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/4.png"><img src="assets/media/product-2.webp" alt="authentic product screenshot" loading="lazy"></a><a class="real-product-image" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/7.png"><img src="assets/media/product-3.webp" alt="authentic product screenshot" loading="lazy"></a></div>
+        <div class="wb-media__toolbar" aria-hidden="true">
+          <span>EXHIBIT / A</span><span>WORKBUDDY CONNECT</span><span>v0.1.12</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="wb-tail">
+      <section aria-labelledby="wb-src-title">
+        <h2 id="wb-src-title">从源码里看</h2>
+        <div class="wb-code"><div class="source-area" id="source-code"><a class="source-link" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/README.md#L1-L19">README.md · L1–19</a><div class="docs-code" data-code-block><div class="docs-code-toolbar"><span class="docs-code-language">Markdown</span><span class="docs-code-file">README.md</span><button class="docs-code-copy" type="button" data-copy-code aria-label="复制代码">复制</button><span class="docs-copy-status" role="status" aria-live="polite"></span></div><pre tabindex="0"><code class="highlight language-markdown" data-language="markdown"><span class="tok-gh"># DSH WorkBuddy Connect Community</span>
+
+[<span class="tok-nt">English</span>](<span class="tok-na">./README.en.md</span>) | 中文
+
+由 Tang Yixiao 维护的社区分叉，基于 Corrine Hu 的 MIT 项目 [<span class="tok-sb">`dsh-workbuddy-connect`</span>](https://github.com/corrinehu/dsh-workbuddy-connect)，保留其原有功能与版权。本项目面向 DeepSeek Harness 0.2.1，复用本机已登录的 WorkBuddy（国内版）或 WorkBuddy AI（国际版），并保留 <span class="tok-sb">`workbuddy`</span> / <span class="tok-sb">`workbuddy-ai`</span> provider ID、现有账号数据和设置。
+
+社区版还对发往服务端的 system/developer 提示词做有限的产品称谓兼容处理，仅替换普通说明文本及已验证的固定 DSH 说明句中的精确称谓。用户、助手和工具消息、工具定义、图片块及文本块元数据保持原样；围栏代码块会跳过处理。普通文本中包含路径分隔符、引号、代码标记或可识别文件扩展名的行也会跳过，唯一额外处理是行首精确匹配已验证的 DSH 固定说明句时替换该句内的称谓，同一行后续内容保持原样。没有任何标记的纯文字文件名无法可靠地与正文区分，建议用反引号标记。这项本地处理不代表官方支持，也不保证上游服务持续可用。
+
+<span class="tok-gu">## 安装或替换</span>
+
+正式版 <span class="tok-gs">**`0.1.12`**</span> 的 DSH 声明范围为 <span class="tok-gs">**`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5`**</span>，只包含这三个版本；rc.4、后续 RC、正式版及 0.2.2 / 0.3 需要另行验证。该版本保留 rc.5 兼容声明，并在模型菜单的“模型”和“推理等级”下方及插件上下文标签页提供上游声明的窗口档位选择。选择按版本、账号和模型保存，直接影响 DSH 的上下文预算；模型不提供档位时不显示选择框。国内 CLI 目录缺少档位时，仅使用当前个人账号最近 24 小时内的桌面产品配置，按模型 ID 和最大输入上限精确匹配；无可验证配置时不展示选项。Windows 国内版已通过只读目录核验，返回 16 个模型，用户已确认 DSH 模型列表显示；真实模型生成及 WorkBuddy AI 国际版的实时请求尚未验收。macOS 和 Linux 尚未进行本分叉的实时验证。
+
+<span class="tok-gs">**DSH Desktop**</span>：在「扩展 → 插件管理 → 添加插件」中选择下载的 <span class="tok-sb">`.tgz`</span> 文件完成安装或更新。Desktop profile 由桌面应用管理；下面的 CLI 示例用于独立 Web profile。安装后先保持社区版禁用，停用原版 <span class="tok-sb">`dsh-workbuddy-connect`</span>，再启用社区版；保留原版及配置以便回退。原版与社区版只能启用一份，避免重复注册 provider。
+
+从 [<span class="tok-nt">GitHub 正式发布</span>](<span class="tok-na">https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.12</span>) 下载并按 DSH 支持的插件安装方式安装独立包：
+
+```sh
+dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.12/dsh-workbuddy-connect-community-0.1.12.tgz
+```</code></pre></div></div></div>
+        <p class="wb-status">0.1.12 已发布，状态与控制接口要求宿主 owner 认证。社区分叉基于 Corrine Hu 的 MIT 项目；服务可用性取决于账号和上游。</p>
+      </section>
+      <section aria-labelledby="wb-install-title">
+        <h2 id="wb-install-title">安装与兼容范围</h2>
+        <div class="wb-install"><div class="docs-code" data-code-block><div class="docs-code-toolbar"><span class="docs-code-language">Bash</span><button class="docs-code-copy" type="button" data-copy-code aria-label="复制代码">复制</button><span class="docs-copy-status" role="status" aria-live="polite"></span></div><pre tabindex="0"><code class="highlight language-bash" data-language="bash">dsh<span class="tok-w"> </span>plugin<span class="tok-w"> </span>--profile<span class="tok-w"> </span>web<span class="tok-w"> </span>add<span class="tok-w"> </span>dsh-workbuddy-connect-community@0.1.12</code></pre></div></div>
+        <p class="wb-status">Requires DeepSeek Harness 0.2.1 with the plugin's declared range <code>0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5</code>. Keep only one of the original or community plugin enabled; both share the same <code>workbuddy</code> / <code>workbuddy-ai</code> provider IDs and account data. Status and control endpoints require host owner authentication.</p>
+      </section>
+    </div>
+
+  </div>
+</section>
+</main><footer class="site-footer"><div class="wrap"><div class="footer-top"><span class="footer-name">WorkBuddy Connect</span><nav class="footer-links"><a href="docs.html">使用文档</a><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community">GITHUB</a><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues">问题与反馈</a></nav></div><div class="footer-bottom"><span>© 2026 tangyixiao/dsh-workbuddy-connect-community</span><details><summary>素材来源</summary><ul><li><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/1.png">assets/1.png</a></li><li><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/4.png">assets/4.png</a></li><li><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/7.png">assets/7.png</a></li></ul></details></div></div></footer><script src="assets/site.js" defer></script><script src="assets/docs-v3.js" defer></script><script src="assets/flagships.js" defer></script><script type="module" src="assets/three/view3d.js"></script></body></html>

@@ -2,32 +2,52 @@
   "repo": "tangyixiao/dsh-workbuddy-connect-community",
   "sourceBranch": "main",
   "sourceCommit": "4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57",
+  "designVersion": 3,
+  "direction": {
+    "visualConcept": "深樱桃红与瓷白的双 provider 接插装置：中央深红连接座承接 DSH，一左一右两条清晰分离的接线引向 WorkBuddy 和 WorkBuddy AI；主标题沿连接座纵向边界排布，真实截图在下方做横向证据带。事实边界：社区维护分叉，复用各自本机登录；不混淆国内与国际账号，不承诺上游额度或可用性。",
+    "layout": "technical",
+    "palette": {
+      "light": {
+        "bg": "#EEDDE1",
+        "surface": "#FFF5EE",
+        "ink": "#421B29",
+        "muted": "#765561",
+        "accent": "#9a244a"
+      },
+      "dark": {
+        "bg": "#241016",
+        "surface": "#3D1B28",
+        "ink": "#FFECE7",
+        "muted": "#c7a2ac",
+        "accent": "#f289a6"
+      }
+    },
+    "threeConcept": "Three.js 构建樱桃红哑光连接座、两根独立线缆与带刻字的插头，侧面浮雕仅刻 workbuddy / workbuddy-ai。插合是协议连接关系示意，禁止画凭据流出、任意账号连通或无认证探测。",
+    "distinctiveInteraction": "选择 CN / AI 时，高亮对应连接线并切换对应真实安装说明与截图，另一条线保持可见以提示隔离；点击认证锁标记展开简短的 owner 访问说明，不运行账单探测。"
+  },
   "media": [
     {
       "src": "assets/media/product-1.webp",
       "alt": "authentic product screenshot",
       "url": "https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/1.png",
-      "width": 1988,
-      "height": 1192
+      "path": "assets/1.png"
     },
     {
       "src": "assets/media/product-2.webp",
       "alt": "authentic product screenshot",
       "url": "https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/4.png",
-      "width": 1430,
-      "height": 540
+      "path": "assets/4.png"
     },
     {
       "src": "assets/media/product-3.webp",
       "alt": "authentic product screenshot",
       "url": "https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/7.png",
-      "width": 1128,
-      "height": 1490
+      "path": "assets/7.png"
     }
   ],
   "skills": [
     "baoyu-design",
     "design-taste-frontend"
   ],
-  "design": "content-first source/product/photography; no rejected template or faux 3D"
+  "flagshipModel": "WorkBuddy / deepseek-v4.1-flash"
 }
