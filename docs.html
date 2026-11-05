@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN" data-project="dsh-workbuddy-connect-community" data-docs="true"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dsh-workbuddy-connect-community · 使用文档</title><link rel="stylesheet" href="assets/system.css"><link rel="stylesheet" href="assets/ui/cards.css"><link rel="stylesheet" href="assets/motion/motion.css"><link rel="stylesheet" href="assets/layout/layout.css"><link rel="stylesheet" href="assets/page.css"><!-- <html lang="en" data-radius="sharp">; keep this <style> after the links: layout.css resets --ly-scale -->
+<style>
+:root {
+  --p-bg: #fafafa; --p-surface: #f0f1f3; --p-ink: #171717; --p-muted: #595959;
+  --p-accent: #1748ca; --p-accent-ink: #fafafa; --p-action: #1748ca; --p-action-ink: #fafafa;
+  --p-inv-bg: #171717; --p-inv-surface: #242424; --p-inv-ink: #fafafa; --p-inv-muted: #9b9b9b;
+  --p-inv-accent: #fafafa; --p-inv-accent-ink: #171717; --p-inv-action: #fafafa; --p-inv-action-ink: #171717;
+  --font-display: "Geist", system-ui, sans-serif;
+  --font-text: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --display-weight: 500;
+  --display-tracking: -0.035em;
+  --display-tracking-xl: -0.045em;
+}
+</style><style>html[data-theme="light"]{--p-bg:#fafafa;--p-surface:#f0f1f3;--p-ink:#171717;--p-muted:#595959;--p-accent:#1748ca;--p-accent-ink:#ffffff;--p-action:#1748ca;--p-action-ink:#ffffff;color-scheme:light}html[data-theme="dark"]{--p-bg:#131517;--p-surface:#202427;--p-ink:#f0f1f2;--p-muted:#b5bbc1;--p-accent:#a4c2ff;--p-accent-ink:#131517;--p-action:#a4c2ff;--p-action-ink:#131517;color-scheme:dark}</style><script src="assets/theme.js"></script><link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/docs.css"></head><body class="docs-page">
+<header class="nav"><div class="wrap nav__bar"><a class="skip-link" href="#docs-content">跳到正文</a><a class="nav__logo" href="index.html#top">WorkBuddy Connect</a><nav class="nav__links" aria-label="章节导航"><div class="nav__item"><a class="nav__link" href="index.html#work">项目内容</a></div><div class="nav__item"><a class="nav__link" href="docs.html">使用文档</a></div></nav><div class="nav__actions"><a class="btn btn--primary" href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.12">获取插件</a><button class="theme-toggle" type="button" data-theme-toggle aria-label="切换深浅色" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button></div><button class="nav__toggle" type="button" aria-expanded="false" aria-label="菜单"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div></header>
+<main class="docs-shell wrap" id="top">
+<aside class="docs-sidebar" aria-label="文档导航">
+<a class="docs-home" href="index.html">← 返回项目首页</a>
+<details class="docs-toc" open><summary>README 目录</summary><nav aria-label="README 目录"><ol><li class="docs-level-1"><a href="#dsh-workbuddy-connect-community">DSH WorkBuddy Connect Community</a></li><li class="docs-level-2"><a href="#安装或替换">安装或替换</a></li><li class="docs-level-3"><a href="#与-zcode-共存">与 ZCode 共存</a></li><li class="docs-level-2"><a href="#兼容性与限制">兼容性与限制</a></li><li class="docs-level-2"><a href="#诊断与可分享报告">诊断与可分享报告</a></li><li class="docs-level-2"><a href="#来源与许可">来源与许可</a></li></ol></nav></details>
+<div class="docs-resources"><p>源仓库资料</p><ul><li><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/README.md">原始 README</a></li><li><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/LICENSE">LICENSE</a></li><li><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases">发布记录 · GitHub Releases</a></li></ul></div>
+</aside>
+<div class="docs-main"><header class="docs-heading"><p class="docs-eyebrow">项目文档 · tangyixiao/dsh-workbuddy-connect-community</p>
+<h1>dsh-workbuddy-connect-community 使用文档</h1><p>以下正文来自源仓库 README。图片以原图链接保留。</p>
+<div class="docs-source"><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/README.md">在 GitHub 阅读原文</a><span>来源版本：<code>4d00a4972891</code></span></div></header>
+<article class="docs-markdown" id="docs-content" tabindex="-1"><h1 id="dsh-workbuddy-connect-community">DSH WorkBuddy Connect Community</h1>
+<p><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/README.en.md">English</a> | 中文</p>
+<p>由 Tang Yixiao 维护的社区分叉，基于 Corrine Hu 的 MIT 项目 <a href="https://github.com/corrinehu/dsh-workbuddy-connect"><code>dsh-workbuddy-connect</code></a>，保留其原有功能与版权。本项目面向 DeepSeek Harness 0.2.1，复用本机已登录的 WorkBuddy（国内版）或 WorkBuddy AI（国际版），并保留 <code>workbuddy</code> / <code>workbuddy-ai</code> provider ID、现有账号数据和设置。</p>
+<p>社区版还对发往服务端的 system/developer 提示词做有限的产品称谓兼容处理，仅替换普通说明文本及已验证的固定 DSH 说明句中的精确称谓。用户、助手和工具消息、工具定义、图片块及文本块元数据保持原样；围栏代码块会跳过处理。普通文本中包含路径分隔符、引号、代码标记或可识别文件扩展名的行也会跳过，唯一额外处理是行首精确匹配已验证的 DSH 固定说明句时替换该句内的称谓，同一行后续内容保持原样。没有任何标记的纯文字文件名无法可靠地与正文区分，建议用反引号标记。这项本地处理不代表官方支持，也不保证上游服务持续可用。</p>
+<h2 id="安装或替换">安装或替换</h2>
+<p>正式版 <strong><code>0.1.12</code></strong> 的 DSH 声明范围为 <strong><code>0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5</code></strong>，只包含这三个版本；rc.4、后续 RC、正式版及 0.2.2 / 0.3 需要另行验证。该版本保留 rc.5 兼容声明，并在模型菜单的“模型”和“推理等级”下方及插件上下文标签页提供上游声明的窗口档位选择。选择按版本、账号和模型保存，直接影响 DSH 的上下文预算；模型不提供档位时不显示选择框。国内 CLI 目录缺少档位时，仅使用当前个人账号最近 24 小时内的桌面产品配置，按模型 ID 和最大输入上限精确匹配；无可验证配置时不展示选项。Windows 国内版已通过只读目录核验，返回 16 个模型，用户已确认 DSH 模型列表显示；真实模型生成及 WorkBuddy AI 国际版的实时请求尚未验收。macOS 和 Linux 尚未进行本分叉的实时验证。</p>
+<p><strong>DSH Desktop</strong>：在「扩展 → 插件管理 → 添加插件」中选择下载的 <code>.tgz</code> 文件完成安装或更新。Desktop profile 由桌面应用管理；下面的 CLI 示例用于独立 Web profile。安装后先保持社区版禁用，停用原版 <code>dsh-workbuddy-connect</code>，再启用社区版；保留原版及配置以便回退。原版与社区版只能启用一份，避免重复注册 provider。</p>
+<p>从 <a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.12">GitHub 正式发布</a> 下载并按 DSH 支持的插件安装方式安装独立包：</p>
+<pre><code class="language-sh">dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.12/dsh-workbuddy-connect-community-0.1.12.tgz
+</code></pre>
+<p>如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。0.1.12 也已发布到 <a href="https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.12">npm</a>。</p>
+<h3 id="与-zcode-共存">与 ZCode 共存</h3>
+<p>在 Windows Desktop 上，曾验证社区版与 <a href="https://github.com/tangyixiao/dsh-zcode-plan-bridge"><code>dsh-zcode-plan-bridge</code></a> 0.4.0 热加载共存：前者使用桌面登录并提供 <code>workbuddy</code> / <code>workbuddy-ai</code>，后者使用已登录的 CLI 账号并提供 <code>zcode-cli</code>；模型选择器可列出三个提供方。这是当时的版本和本机验证，不代表所有版本组合均已验证。<code>doctor</code> 和模型目录检查反映本机准备状态；账号计划是否有可用额度，需要实际请求确认。</p>
+<h2 id="兼容性与限制">兼容性与限制</h2>
+<p>插件直接复用 WorkBuddy 桌面应用的登录状态与服务接口，模型目录、请求和额度显示依赖第三方服务状态。服务接口可能变化或不可用；社区维护不意味着 WorkBuddy、腾讯或 DeepSeek 的授权或背书。请遵守相关服务条款。</p>
+<p>本软件不包含账号凭据、用户会话或运行时数据。凭据只从本机应用或 DSH 自己保存的凭据副本读取。</p>
+<p>0.1.12 中的国内版与国际版 Web 状态、控制接口均通过 DSH <code>connection.admit()</code> 校验宿主登录身份，仅允许 owner 访问。匿名或登录已失效的请求返回 401，其他身份返回 403；控制请求还需通过 Host/Origin 和 <code>probeKey</code> 校验。响应禁止缓存；缺少宿主 <code>connection</code> 服务时不挂载这些接口，模型提供方和 CLI 仍可用于无 Web 的 profile。此安全修复从 0.1.12 起提供。</p>
+<h2 id="诊断与可分享报告">诊断与可分享报告</h2>
+<p>以下 <code>--share</code> 功能包含在 0.1.12 中，0.1.10 包不包含该功能。运行 <code>dsh-workbuddy-connect-community doctor --share</code> 可生成可复制的 JSON 诊断报告；国际版使用 <code>dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai</code>。该报告只包含版本、运行时、平台、架构、provider、登录文件是否存在及格式、登录状态和已知原因码、主机心跳状态、内置模型数，以及安全的应用版本来源标记。报告不含本地路径、账号标识、进程号、时间戳或自由文本错误。<code>readiness.authentication</code> 的 <code>credential-found</code> 仅表示凭据可被本地解析，不验证访问令牌是否仍有效，也不尝试刷新；<code>readiness.liveInference</code> 固定为 <code>not-tested</code>，命令不会发送模型请求。若本地诊断读取失败，命令仍会输出仅含固定 <code>diagnostic-unavailable</code> 错误码的 JSON。报告不代表服务可用。</p>
+<p>普通 <code>doctor</code> 输出仍用于本机排查；已知原因码是稳定枚举，可用于判断下一步。<code>no-credential</code> 表示没有可用登录凭据；<code>encrypted-credential-unreadable</code> 表示加密凭据无法解锁；<code>electron-binary-not-found</code>、<code>electron-binary-ambiguous</code>、<code>electron-binary-unavailable</code>、<code>electron-path-invalid</code> 和 <code>electron-discovery-incomplete</code> 分别说明辅助程序未找到、候选不唯一、平台未提供自动发现、指定路径无效或发现流程未完成；<code>credential-region-mismatch</code> 表示凭据属于另一个 WorkBuddy 产品。未知原因码不会进入共享报告。</p>
+<table>
+<thead>
+<tr>
+<th>平台</th>
+<th>本项目验证情况</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Windows</td>
+<td>此前已完成本机接受验证</td>
+</tr>
+<tr>
+<td>macOS</td>
+<td>未进行本机实时验证</td>
+</tr>
+<tr>
+<td>Linux</td>
+<td>未进行本机实时验证</td>
+</tr>
+</tbody>
+</table>
+<p>跨平台测试中的 Windows、macOS、Linux 输入是模拟夹具，不代表这些系统上的运行接受验证。诊断结果也不保证 WorkBuddy 服务可用。</p>
+<h2 id="来源与许可">来源与许可</h2>
+<p>本仓库保留原项目 Git 历史，维护分叉基于上游提交 <a href="https://github.com/corrinehu/dsh-workbuddy-connect/commit/c0ed88e3712d3bb2e2deff5fddec1181e6222973"><code>c0ed88e3712d3bb2e2deff5fddec1181e6222973</code></a>。原作者 Corrine Hu 的 MIT 版权声明保留；分叉维护者为 Tang Yixiao。详见 <a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/LICENSE">LICENSE</a> 与 <a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/THIRD_PARTY_NOTICES.txt">第三方声明</a>。</p>
+</article>
+</div></main><footer class="docs-footer wrap"><a href="index.html">返回首页</a><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community">GitHub 源仓库</a></footer>
+<script type="module" src="assets/system.js"></script></body></html>

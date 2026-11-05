@@ -1,0 +1,18 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "WorkBuddy Connect": {
+      "versions": [
+        {
+          "path": "index.html",
+          "createdAt": "2026-11-05T13:15:13.954Z",
+          "status": "needs-review"
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-11-05T13:15:13.954Z",
+  "updatedAt": "2026-11-05T13:43:19.026Z"
+}

@@ -1,0 +1,33 @@
+{
+  "repo": "tangyixiao/dsh-workbuddy-connect-community",
+  "sourceBranch": "main",
+  "sourceCommit": "4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57",
+  "media": [
+    {
+      "src": "assets/media/product-1.webp",
+      "alt": "authentic product screenshot",
+      "url": "https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/1.png",
+      "width": 1988,
+      "height": 1192
+    },
+    {
+      "src": "assets/media/product-2.webp",
+      "alt": "authentic product screenshot",
+      "url": "https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/4.png",
+      "width": 1430,
+      "height": 540
+    },
+    {
+      "src": "assets/media/product-3.webp",
+      "alt": "authentic product screenshot",
+      "url": "https://github.com/tangyixiao/dsh-workbuddy-connect-community/blob/4d00a49728919ecfbf786ef1dcd1cea7cd5a2e57/assets/7.png",
+      "width": 1128,
+      "height": 1490
+    }
+  ],
+  "skills": [
+    "baoyu-design",
+    "design-taste-frontend"
+  ],
+  "design": "content-first source/product/photography; no rejected template or faux 3D"
+}
