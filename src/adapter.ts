@@ -35,6 +35,8 @@ const REQUEST_IMAGE_BUDGETS = {
   maxRequestImageBytes: 20_971_520,
   requestImagePixelBudget: 4_194_304,
   requestImageMaxBytes: 1_048_576,
+  maxRequestImages: 50,
+  imageOffloadCountQuantum: 10,
 } as const
 
 /**

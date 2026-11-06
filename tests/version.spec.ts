@@ -99,7 +99,7 @@ describe('peer manifest pins the verified DSH cores', () => {
       readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
     ) as { peerDependencies: Record<string, string> }
     for (const name of DSH_SERVICE_PEERS) {
-      expect(pkg.peerDependencies[name], `${name} missing from peerDependencies`).toBe('0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5')
+      expect(pkg.peerDependencies[name], `${name} missing from peerDependencies`).toBe('0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5 || 0.2.2-rc.1')
     }
   })
 
@@ -109,7 +109,7 @@ describe('peer manifest pins the verified DSH cores', () => {
     const pkg = JSON.parse(
       readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
     ) as { peerDependencies: Record<string, string>, devDependencies: Record<string, string> }
-    expect(pkg.devDependencies['@deepseek-ai/dsh-atomic-write']).toBe('0.2.1-rc.5')
+    expect(pkg.devDependencies['@deepseek-ai/dsh-atomic-write']).toBe('0.2.2-rc.1')
     expect(pkg.peerDependencies['@deepseek-ai/dsh-atomic-write']).toBeUndefined()
   })
 
