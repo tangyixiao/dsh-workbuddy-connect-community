@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { WorkBuddyCredentialStore } from '../src/auth.ts'
 import { WorkBuddyCatalog } from '../src/catalog.ts'
 import { isFetchBlockedPort } from '../src/loopback.ts'
-import { createWorkBuddyShim, type WorkBuddyShim } from '../src/shim.ts'
+import { createWorkBuddyShim, type ShimLogger, type WorkBuddyShim } from '../src/shim.ts'
 import type { WorkBuddyChatResult } from '../src/upstream.ts'
 
 const CLEANUP: (() => Promise<void>)[] = []
@@ -111,7 +111,7 @@ function rawRequest(options: {
   })
 }
 
-async function startShim(upstreamResponse: () => WorkBuddyChatResult): Promise<Harness> {
+async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: ShimLogger): Promise<Harness> {
   const dir = await mkdtemp(join(tmpdir(), 'wb-shim-'))
   CLEANUP.push(() => rm(dir, { recursive: true, force: true }))
   const desktop = join(dir, 'workbuddy-desktop.info')
@@ -136,6 +136,7 @@ async function startShim(upstreamResponse: () => WorkBuddyChatResult): Promise<H
   harness.shim = createWorkBuddyShim({
     store,
     catalog: new WorkBuddyCatalog(),
+    ...(logger === undefined ? {} : { logger }),
     client: {
       async chatStream(_credential, bodyJson, abortSignal): Promise<WorkBuddyChatResult> {
         harness.upstreamBodies.push(bodyJson)
@@ -194,6 +195,102 @@ describe('WorkBuddy shim', () => {
     const forwarded = JSON.parse(harness.upstreamBodies[0] ?? '') as Record<string, unknown>
     expect(forwarded['stream']).toBe(true)
     expect(forwarded['tool_choice']).toBe('auto')
+  })
+
+  it.each([
+    ['partial event', 'data: {"choices":['],
+    ['complete event', 'data: {"choices":[]}\n\n'],
+    ['sentinel text in model output', 'data: {"text":"[DONE]"}\n\n'],
+  ])('reports an interrupted upstream stream after %s without fabricating completion', async (_label, prefix) => {
+    const logs: unknown[][] = []
+    const logger: ShimLogger = { warn: (...args) => { logs.push(args) }, error: (...args) => { logs.push(args) } }
+    let upstream: ReadableStreamDefaultController<Uint8Array> | undefined
+    const responseBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        upstream = controller
+        controller.enqueue(new TextEncoder().encode(prefix))
+      },
+    })
+    const harness = await startShim(() => ({
+      ok: true,
+      response: new Response(responseBody, { headers: { 'Content-Type': 'text/event-stream' } }),
+    }), logger)
+    const abort = new AbortController()
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${harness.shim.token()}` },
+      body: JSON.stringify({ model: 'hy3', messages: [] }),
+      signal: abort.signal,
+    })
+    const reader = response.body!.getReader()
+    const first = await reader.read()
+    expect(new TextDecoder().decode(first.value)).toBe(prefix)
+    upstream!.error(new Error('private-upstream-error-canary'))
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const outcome = await Promise.race([
+        (async () => {
+          try {
+            while (!(await reader.read()).done) { /* consume remaining bytes */ }
+            return 'completed'
+          } catch {
+            return 'interrupted'
+          }
+        })(),
+        new Promise<string>(resolve => { timer = setTimeout(() => resolve('hung'), 1200) }),
+      ])
+      expect(outcome).toBe('interrupted')
+      expect(JSON.stringify(logs)).toContain('upstream stream interrupted')
+      expect(JSON.stringify(logs)).not.toContain('private-upstream-error-canary')
+    } finally {
+      clearTimeout(timer)
+      abort.abort()
+    }
+  })
+
+  it('passes a completion sentinel split across chunks without changing the stream', async () => {
+    const chunks = ['data: {"choices":[]}\n\n', 'data: [DO', 'NE]\n\n']
+    const responseBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk))
+        controller.close()
+      },
+    })
+    const harness = await startShim(() => ({ ok: true, response: new Response(responseBody) }))
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${harness.shim.token()}` },
+      body: JSON.stringify({ model: 'hy3', messages: [] }),
+    })
+    expect(await response.text()).toBe(chunks.join(''))
+  })
+
+  it('does not report a user cancellation as an upstream stream failure', async () => {
+    const logs: unknown[][] = []
+    const logger: ShimLogger = { warn: (...args) => { logs.push(args) }, error: (...args) => { logs.push(args) } }
+    let upstream: ReadableStreamDefaultController<Uint8Array> | undefined
+    const responseBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        upstream = controller
+        controller.enqueue(new TextEncoder().encode('data: {"choices":[]}\n\n'))
+      },
+    })
+    const harness = await startShim(() => ({ ok: true, response: new Response(responseBody) }), logger)
+    const abort = new AbortController()
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${harness.shim.token()}` },
+      body: JSON.stringify({ model: 'hy3', messages: [] }),
+      signal: abort.signal,
+    })
+    await response.body!.getReader().read()
+    abort.abort()
+    await waitFor(() => harness.upstreamSignal()?.aborted === true)
+    expect(harness.upstreamSignal()?.aborted).toBe(true)
+    upstream!.error(new Error('cancelled-by-user'))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(JSON.stringify(logs)).not.toContain('upstream stream interrupted')
+    expect(JSON.stringify(logs)).not.toContain('cancelled-by-user')
   })
 
   it('forwards the reasoning_effort a model picker selection sends', async () => {

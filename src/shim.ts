@@ -306,14 +306,14 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
     })
-    let sawDone = false
     const body = Readable.fromWeb(result.response.body as Parameters<typeof Readable.fromWeb>[0])
-    body.on('data', (chunk: Buffer) => {
-      if (chunk.includes('[DONE]')) sawDone = true
-    })
-    body.on('error', (error: unknown) => {
-      logger?.warn('dsh-workbuddy-connect: upstream stream failed mid-flight', error)
-      if (!sawDone && res.writable) res.end('data: [DONE]\n\n')
+    body.on('error', () => {
+      // An interrupted upstream response is not a successful completion. In
+      // particular, appending a synthetic sentinel can join a partial SSE
+      // event or silently turn a truncated reply into a successful one.
+      // Do not include the error object: it may contain response data or URLs.
+      if (!controller.signal.aborted) logger?.warn('dsh-workbuddy-connect: upstream stream interrupted')
+      if (!res.destroyed && !res.writableEnded) res.destroy()
     })
     body.pipe(res)
   }
