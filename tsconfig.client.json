@@ -32,6 +32,7 @@
     "tests/model-visibility-card.spec.ts",
     "tests/electron-assist.spec.ts",
     "tests/update-notice.spec.ts",
-    "tests/context-menu-ui.spec.ts"
+    "tests/context-menu-ui.spec.ts",
+    "tests/client-message-credit.spec.ts"
   ]
 }

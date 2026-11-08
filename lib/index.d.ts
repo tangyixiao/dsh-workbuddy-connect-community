@@ -1394,6 +1394,10 @@ interface WorkBuddyShimOptions {
   client: Pick<WorkBuddyUpstreamClient, 'chatStream'>;
   catalog: WorkBuddyCatalog;
   logger?: ShimLogger;
+  /** Receives only a completed upstream response's observed credit. */
+  onCredit?: (responseId: string, credit: number) => void;
+  /** Called when the signed-in account changes or a stream becomes stale. */
+  onAccountChange?: () => void;
 }
 /**
  * Start the loopback endpoint. Requests carry any bearer; the loopback bind

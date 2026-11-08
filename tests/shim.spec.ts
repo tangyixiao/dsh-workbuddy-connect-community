@@ -111,7 +111,7 @@ function rawRequest(options: {
   })
 }
 
-async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: ShimLogger): Promise<Harness> {
+async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: ShimLogger, onCredit?: (responseId: string, credit: number) => void): Promise<Harness> {
   const dir = await mkdtemp(join(tmpdir(), 'wb-shim-'))
   CLEANUP.push(() => rm(dir, { recursive: true, force: true }))
   const desktop = join(dir, 'workbuddy-desktop.info')
@@ -137,6 +137,7 @@ async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: S
     store,
     catalog: new WorkBuddyCatalog(),
     ...(logger === undefined ? {} : { logger }),
+    ...(onCredit === undefined ? {} : { onCredit }),
     client: {
       async chatStream(_credential, bodyJson, abortSignal): Promise<WorkBuddyChatResult> {
         harness.upstreamBodies.push(bodyJson)
@@ -195,6 +196,50 @@ describe('WorkBuddy shim', () => {
     const forwarded = JSON.parse(harness.upstreamBodies[0] ?? '') as Record<string, unknown>
     expect(forwarded['stream']).toBe(true)
     expect(forwarded['tool_choice']).toBe('auto')
+  })
+
+  it('observes completed SSE credit without changing forwarded bytes', async () => {
+    const raw = 'data: {"id":"resp-1","choices":[{"delta":{"content":"你好"}}]}\n\ndata: {"id":"resp-1","usage":{"credit":0}}\n\ndata: [DONE]\n\n'
+    const observed: unknown[] = []
+    const harness = await startShim(() => ({ ok: true, response: new Response(raw, { headers: { 'Content-Type': 'text/event-stream' } }) }), undefined, (...args) => observed.push(args))
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { authorization: `Bearer ${harness.shim.token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ messages: [] }),
+    })
+    expect(await response.text()).toBe(raw)
+    await waitFor(() => observed.length > 0)
+    expect(observed).toEqual([['resp-1', 0]])
+  })
+
+  it('discards a completed old-account response after the account changes', async () => {
+    let release!: () => void
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"id":"resp-old","usage":{"credit":4}}\n\n'))
+        release = () => { controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); controller.close() }
+      },
+    })
+    const observed: unknown[] = []
+    const harness = await startShim(() => ({ ok: true, response: new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } }) }), undefined, (...args) => observed.push(args))
+    const pending = fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { authorization: `Bearer ${harness.shim.token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ messages: [] }),
+    })
+    await waitFor(() => harness.upstreamSignals.length > 0)
+    const desktopPath = (harness.store as unknown as { desktopPath?: string }).desktopPath
+    // The store's configured path is deliberately private; resolve is stubbed
+    // with this test-only structural seam so no credential document is mocked.
+    const originalResolve = harness.store.resolve.bind(harness.store)
+    let switched = false
+    harness.store.resolve = async () => {
+      const credential = await originalResolve()
+      return switched ? { ...credential, uid: 'uid-2' } : credential
+    }
+    switched = true
+    release()
+    const response = await pending
+    await response.text()
+    await waitFor(() => observed.length > 0 || harness.upstreamSignals.length === 0)
+    expect(desktopPath).toBeUndefined()
+    expect(observed).toEqual([])
   })
 
   it.each([

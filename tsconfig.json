@@ -31,6 +31,7 @@
     "tests/slot-registration.spec.ts",
     "tests/client-defects.spec.ts",
     "tests/client-fallback.spec.ts",
+    "tests/client-message-credit.spec.ts",
     "tests/model-visibility-card.spec.ts",
     "tests/electron-assist.spec.ts",
     "tests/update-notice.spec.ts",

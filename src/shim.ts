@@ -22,6 +22,7 @@ import type { WorkBuddyCredentialStore } from './auth.ts'
 import type { WorkBuddyCatalog } from './catalog.ts'
 import { bindToUsablePort, hostIsLoopback, originIsLoopback } from './loopback.ts'
 import { extractDisplayErrorMessage, prepareChatBody, WorkBuddyUpstreamClient, type UpstreamErrorKind } from './upstream.ts'
+import { WorkBuddyCreditSseObserver } from './credit-log.ts'
 
 /** Minimal logger surface the plugin context already provides. */
 export interface ShimLogger {
@@ -52,6 +53,10 @@ export interface WorkBuddyShimOptions {
   client: Pick<WorkBuddyUpstreamClient, 'chatStream'>
   catalog: WorkBuddyCatalog
   logger?: ShimLogger
+  /** Receives only a completed upstream response's observed credit. */
+  onCredit?: (responseId: string, credit: number) => void
+  /** Called when the signed-in account changes or a stream becomes stale. */
+  onAccountChange?: () => void
 }
 
 const REQUEST_BODY_LIMIT = 64 * 1024 * 1024
@@ -108,6 +113,17 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
 export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShim {
   const { store, client, catalog } = options
   const logger = options.logger
+  let accountIdentity: string | undefined
+  let accountGeneration = 0
+  const identifyAccount = (credential: { uid: string; enterpriseId?: string }): number => {
+    const identity = `${credential.uid}:${credential.enterpriseId ?? ''}`
+    if (accountIdentity !== identity) {
+      accountIdentity = identity
+      accountGeneration++
+      options.onAccountChange?.()
+    }
+    return accountGeneration
+  }
 
   // Per-process shared secret. Lives only in memory; the adapter resolves it
   // as the OpenAI apiKey, which pi-ai sends as `Authorization: Bearer ...`.
@@ -212,6 +228,7 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
       writeOpenAIError(res, 401, 'not_signed_in', String(error))
       return
     }
+    const requestGeneration = identifyAccount(credential)
 
     // The client's disconnect must reach the upstream request, or "Stop" only
     // stops the stream being *read* here: the upstream keeps generating and
@@ -307,6 +324,18 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
       'X-Accel-Buffering': 'no',
     })
     const body = Readable.fromWeb(result.response.body as Parameters<typeof Readable.fromWeb>[0])
+    const creditObserver = options.onCredit === undefined ? undefined : new WorkBuddyCreditSseObserver()
+    if (creditObserver !== undefined) {
+      body.on('data', (chunk: Buffer | Uint8Array) => creditObserver.push(chunk))
+      body.once('end', () => {
+        void store.resolve().then(current => {
+          const currentGeneration = identifyAccount(current)
+          if (currentGeneration !== requestGeneration) return
+          const observed = creditObserver.finish()
+          if (observed !== undefined) options.onCredit!(observed.responseId, observed.credit)
+        }).catch(() => undefined)
+      })
+    }
     body.on('error', () => {
       // An interrupted upstream response is not a successful completion. In
       // particular, appending a synthetic sentinel can join a partial SSE

@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WorkBuddyCredentialStore } from '../src/auth.ts'
 import { registerWorkBuddyStatusRoute } from '../src/web-status.ts'
 import { registerWorkBuddyProbeRoute } from '../src/probe-route.ts'
+import { WorkBuddyCreditLog } from '../src/credit-log.ts'
+import { registerWorkBuddyCreditRoute } from '../src/credit-route.ts'
 import { WORKBUDDY_VARIANTS } from '../src/variants.ts'
 
 let ctx: Context | undefined
@@ -41,6 +43,8 @@ async function mount(withConnection = true) {
   const refresh = vi.fn(async () => ({ state: 'refreshed' }))
   const contextWindow = vi.fn(async () => ({ state: 'updated' }))
   const visibility = vi.fn(async () => ({ state: 'updated' }))
+  const creditLog = new WorkBuddyCreditLog()
+  const creditRead = vi.spyOn(creditLog, 'read')
   for (const variant of WORKBUDDY_VARIANTS) {
     registerWorkBuddyStatusRoute(ctx, {
       path: variant.statusPath,
@@ -52,6 +56,12 @@ async function mount(withConnection = true) {
       path: variant.probePath, probe, clear, refresh,
       setMaximumContextWindow: contextWindow, setModelContextWindow: contextWindow, setModelVisibility: visibility,
     }, 'test-control-key')
+    registerWorkBuddyCreditRoute(ctx, {
+      path: variant.id === 'workbuddy' ? '/plugins/dsh-workbuddy-connect/credits' : '/plugins/dsh-workbuddy-connect/ai/credits',
+      provider: variant.id,
+      log: creditLog,
+      account: () => 'uid:tenant',
+    })
   }
   server = createServer((req, res) => {
     const handler = routes.get(new URL(req.url ?? '/', 'http://localhost').pathname)?.handler
@@ -70,7 +80,7 @@ async function mount(withConnection = true) {
     expect(cookie).not.toBe('')
     return cookie
   }
-  return { origin, login, reads, probe, clear, refresh, contextWindow, visibility }
+  return { origin, login, reads, probe, clear, refresh, contextWindow, visibility, creditRead }
 }
 
 describe('host authentication on registered WorkBuddy routes (index #241)', () => {
@@ -127,6 +137,25 @@ describe('host authentication on registered WorkBuddy routes (index #241)', () =
     }
     expect(app.reads).not.toHaveBeenCalled()
     expect(app.clear).not.toHaveBeenCalled()
+  })
+
+  it('rejects anonymous and non-owner credit reads before looking up session data', async () => {
+    const app = await mount()
+    const path = '/plugins/dsh-workbuddy-connect/credits?sessionId=secret-session'
+    expect((await fetch(app.origin + path)).status).toBe(401)
+    expect(app.creditRead).not.toHaveBeenCalled()
+    const cookie = await app.login()
+    const response = await fetch(app.origin + path, { headers: { cookie } })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ sessionId: 'secret-session', credits: {} })
+    expect(app.creditRead).toHaveBeenCalledExactlyOnceWith('workbuddy', 'uid:tenant', 'secret-session')
+    expect((await fetch(app.origin + path, { method: 'POST', headers: { cookie } })).status).toBe(405)
+    expect((await fetch(app.origin + path, { headers: { cookie, origin: 'https://attacker.invalid' } })).status).toBe(403)
+    expect(app.creditRead).toHaveBeenCalledOnce()
+
+    vi.spyOn(ctx!.connection, 'admit').mockReturnValue({ rejection: 403 })
+    expect((await fetch(app.origin + path, { headers: { cookie } })).status).toBe(403)
+    expect(app.creditRead).toHaveBeenCalledOnce()
   })
 
   it('refuses an authenticated non-owner Peer', async () => {
