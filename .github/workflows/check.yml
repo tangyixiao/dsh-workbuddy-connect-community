@@ -28,7 +28,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: |
           pnpm run typecheck
-          timeout --signal=TERM --kill-after=15s 8m pnpm exec vitest run --reporter=verbose
           pnpm run build
+          timeout --signal=TERM --kill-after=15s 8m pnpm exec vitest run --reporter=verbose
+          pnpm run check-release
       - if: runner.os != 'Linux'
         run: pnpm run check

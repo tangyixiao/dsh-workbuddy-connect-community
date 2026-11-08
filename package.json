@@ -2,7 +2,7 @@
   "name": "dsh-workbuddy-connect-community",
   "displayName": "DSH WorkBuddy Connect Community",
   "description": "Community-maintained WorkBuddy / WorkBuddy AI provider for DeepSeek Harness.",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "author": "Tang Yixiao (maintained fork of Corrine Hu's dsh-workbuddy-connect)",
   "keywords": [
     "dsh-plugin",
@@ -22,11 +22,12 @@
     "dsh-workbuddy-connect-community": "lib/bin.js"
   },
   "scripts": {
-    "prepack": "npm run build",
+    "prepack": "pnpm run build && pnpm run check-release",
     "build": "tsdown",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
-    "check": "pnpm run typecheck && pnpm run test && pnpm run build"
+    "check-release": "node scripts/check-release.mjs",
+    "check": "pnpm run typecheck && pnpm run build && pnpm run test && pnpm run check-release"
   },
   "exports": {
     ".": {
@@ -46,6 +47,9 @@
     "THIRD_PARTY_NOTICES.txt"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tangyixiao/dsh-workbuddy-connect-community.git"
