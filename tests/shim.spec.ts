@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WorkBuddyCredentialStore } from '../src/auth.ts'
 import { WorkBuddyCatalog } from '../src/catalog.ts'
 import { isFetchBlockedPort } from '../src/loopback.ts'
@@ -111,7 +111,10 @@ function rawRequest(options: {
   })
 }
 
-async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: ShimLogger, onCredit?: (responseId: string, credit: number) => void): Promise<Harness> {
+async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: ShimLogger, onCredit?: (responseId: string, credit: number) => void, creditScope?: {
+  epoch: () => number
+  observe: (responseId: string, credit: number, account: string, epoch: number) => void
+}): Promise<Harness> {
   const dir = await mkdtemp(join(tmpdir(), 'wb-shim-'))
   CLEANUP.push(() => rm(dir, { recursive: true, force: true }))
   const desktop = join(dir, 'workbuddy-desktop.info')
@@ -138,6 +141,10 @@ async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: S
     catalog: new WorkBuddyCatalog(),
     ...(logger === undefined ? {} : { logger }),
     ...(onCredit === undefined ? {} : { onCredit }),
+    ...(creditScope === undefined ? {} : {
+      creditEpoch: creditScope.epoch,
+      onCreditScoped: creditScope.observe,
+    }),
     client: {
       async chatStream(_credential, bodyJson, abortSignal): Promise<WorkBuddyChatResult> {
         harness.upstreamBodies.push(bodyJson)
@@ -218,28 +225,69 @@ describe('WorkBuddy shim', () => {
         release = () => { controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); controller.close() }
       },
     })
-    const observed: unknown[] = []
-    const harness = await startShim(() => ({ ok: true, response: new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } }) }), undefined, (...args) => observed.push(args))
+    const log = new (await import('../src/credit-log.ts')).WorkBuddyCreditLog()
+    const scoped = vi.fn((responseId: string, credit: number, account: string, epoch: number) => log.observe(responseId, credit, account, epoch))
+    const harness = await startShim(() => ({ ok: true, response: new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } }) }), undefined, undefined, {
+      epoch: () => log.epoch,
+      observe: scoped,
+    })
     const pending = fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
       method: 'POST', headers: { authorization: `Bearer ${harness.shim.token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ messages: [] }),
     })
     await waitFor(() => harness.upstreamSignals.length > 0)
-    const desktopPath = (harness.store as unknown as { desktopPath?: string }).desktopPath
-    // The store's configured path is deliberately private; resolve is stubbed
-    // with this test-only structural seam so no credential document is mocked.
-    const originalResolve = harness.store.resolve.bind(harness.store)
-    let switched = false
-    harness.store.resolve = async () => {
-      const credential = await originalResolve()
-      return switched ? { ...credential, uid: 'uid-2' } : credential
-    }
-    switched = true
+    log.clear() // the account reconciliation epoch advances before completion
     release()
     const response = await pending
     await response.text()
-    await waitFor(() => observed.length > 0 || harness.upstreamSignals.length === 0)
-    expect(desktopPath).toBeUndefined()
-    expect(observed).toEqual([])
+    expect(scoped).not.toHaveBeenCalled()
+    expect(log.size).toBe(0)
+  })
+
+  it('keeps the request account and epoch when credential resolution finishes after account reconciliation', async () => {
+    const raw = 'data: {"id":"response-a","usage":{"credit":9}}\n\ndata: [DONE]\n\n'
+    const log = new (await import('../src/credit-log.ts')).WorkBuddyCreditLog()
+    const scoped = vi.fn((responseId: string, credit: number, account: string, epoch: number) => {
+      log.observe(responseId, credit, account, epoch)
+    })
+    const harness = await startShim(() => ({ ok: true, response: new Response(raw, { headers: { 'Content-Type': 'text/event-stream' } }) }), undefined, undefined, {
+      epoch: () => log.epoch,
+      observe: scoped,
+    })
+    const originalResolve = harness.store.resolve.bind(harness.store)
+    let releaseCredential!: (value: Awaited<ReturnType<typeof originalResolve>>) => void
+    let enteredResolve!: () => void
+    const entered = new Promise<void>(resolve => { enteredResolve = resolve })
+    const delayedCredential = new Promise<Awaited<ReturnType<typeof originalResolve>>>(resolve => { releaseCredential = resolve })
+    harness.store.resolve = async () => { enteredResolve(); return delayedCredential }
+
+    const request = fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { authorization: `Bearer ${harness.shim.token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ messages: [] }),
+    })
+    await entered
+    log.clear() // adoptIdentity reconciles account B while A's resolution is pending
+    releaseCredential(await originalResolve())
+    const response = await request
+    await response.text()
+    expect(scoped).not.toHaveBeenCalled()
+    expect(log.size).toBe(0)
+    expect(log.read('workbuddy', 'uid-b:', 'session-b').credits).toEqual({})
+  })
+
+  it('passes the credential captured at request start to the scoped credit observer', async () => {
+    const raw = 'data: {"id":"response-a","usage":{"credit":9}}\n\ndata: [DONE]\n\n'
+    const log = new (await import('../src/credit-log.ts')).WorkBuddyCreditLog()
+    const scoped = vi.fn((responseId: string, credit: number, account: string, epoch: number) => log.observe(responseId, credit, account, epoch))
+    const harness = await startShim(() => ({ ok: true, response: new Response(raw, { headers: { 'Content-Type': 'text/event-stream' } }) }), undefined, undefined, {
+      epoch: () => log.epoch,
+      observe: scoped,
+    })
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { authorization: `Bearer ${harness.shim.token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ messages: [] }),
+    })
+    await response.text()
+    expect(scoped).toHaveBeenCalledWith('response-a', 9, 'uid-1:', 0)
+    expect(log.observe('response-a', 9, 'uid-b:', 0)).toBe(false)
+    expect(log.read('workbuddy', 'uid-b:', 'session-b').credits).toEqual({})
   })
 
   it.each([

@@ -4,8 +4,8 @@ import { WorkBuddyCreditLog, WorkBuddyCreditSseObserver } from '../src/credit-lo
 describe('WorkBuddyCreditLog', () => {
   it('joins observed credits to exact response, provider, account, session, and message identities', () => {
     const log = new WorkBuddyCreditLog(3)
-    log.observe('r1', 0)
-    expect(log.associate('workbuddy', 'account-a', 'r1', 'session-a', 'message-a')).toBe(true)
+    log.observe('r1', 0, 'account-a')
+    expect(log.associate('workbuddy', 'r1', 'session-a', 'message-a')).toBe(true)
     expect(log.read('workbuddy', 'account-a', 'session-a')).toEqual({ sessionId: 'session-a', credits: { 'message-a': 0 } })
     expect(log.read('workbuddy-ai', 'account-a', 'session-a')).toEqual({ sessionId: 'session-a', credits: {} })
     expect(log.read('workbuddy', 'account-b', 'session-a')).toEqual({ sessionId: 'session-a', credits: {} })
@@ -14,18 +14,18 @@ describe('WorkBuddyCreditLog', () => {
 
   it('accepts either arrival order and keeps the latest valid usage value', () => {
     const log = new WorkBuddyCreditLog()
-    expect(log.associate('workbuddy', 'account-a', 'r2', 's', 'm')).toBe(false)
-    log.observe('r2', 2)
-    log.observe('r2', 3)
+    expect(log.associate('workbuddy', 'r2', 's', 'm')).toBe(false)
+    log.observe('r2', 2, 'account-a')
+    log.observe('r2', 3, 'account-a')
     expect(log.read('workbuddy', 'account-a', 's').credits).toEqual({ m: 3 })
   })
 
   it('keeps concurrent response joins independent when completions arrive in reverse order', () => {
     const log = new WorkBuddyCreditLog()
-    log.associate('workbuddy', 'account-a', 'first', 'session-a', 'message-first')
-    log.associate('workbuddy', 'account-a', 'second', 'session-b', 'message-second')
-    log.observe('second', 2)
-    log.observe('first', 1)
+    log.associate('workbuddy', 'first', 'session-a', 'message-first')
+    log.associate('workbuddy', 'second', 'session-b', 'message-second')
+    log.observe('second', 2, 'account-a')
+    log.observe('first', 1, 'account-a')
     expect(log.read('workbuddy', 'account-a', 'session-a').credits).toEqual({ 'message-first': 1 })
     expect(log.read('workbuddy', 'account-a', 'session-b').credits).toEqual({ 'message-second': 2 })
   })
@@ -69,8 +69,8 @@ describe('WorkBuddyCreditLog', () => {
   it('bounds retained responses and clears account-sensitive entries', () => {
     const log = new WorkBuddyCreditLog(2)
     for (let i = 1; i <= 3; i++) {
-      log.observe(`r${i}`, i)
-      log.associate('workbuddy', 'account-a', `r${i}`, 's', `m${i}`)
+      log.observe(`r${i}`, i, 'account-a')
+      log.associate('workbuddy', `r${i}`, 's', `m${i}`)
     }
     expect(log.size).toBe(2)
     expect(log.read('workbuddy', 'account-a', 's').credits).toEqual({ m2: 2, m3: 3 })
@@ -81,17 +81,26 @@ describe('WorkBuddyCreditLog', () => {
 
   it('drops a disposed session from the in-memory join', () => {
     const log = new WorkBuddyCreditLog()
-    log.observe('r', 1)
-    log.associate('workbuddy', 'account-a', 'r', 's', 'm')
+    log.observe('r', 1, 'account-a')
+    log.associate('workbuddy', 'r', 's', 'm')
     log.removeSession('workbuddy', 's')
     expect(log.read('workbuddy', 'account-a', 's').credits).toEqual({})
   })
 
+  it('rejects a captured account observation after reconciliation clears the account epoch', () => {
+    const log = new WorkBuddyCreditLog()
+    const requestEpoch = log.epoch
+    log.clear() // account B was adopted while account A's completion was pending
+    expect(log.observe('response-a', 7, 'uid-a:', requestEpoch)).toBe(false)
+    expect(log.read('workbuddy', 'uid-b:', 'session-b').credits).toEqual({})
+    expect(log.size).toBe(0)
+  })
+
   it('does not attach interrupted or unobserved responses', () => {
     const log = new WorkBuddyCreditLog()
-    log.associate('workbuddy', 'account-a', 'missing', 's', 'm')
+    log.associate('workbuddy', 'missing', 's', 'm')
     expect(log.read('workbuddy', 'account-a', 's').credits).toEqual({})
-    log.observe('interrupted', 8)
+    log.observe('interrupted', 8, 'account-a')
     expect(log.read('workbuddy', 'account-a', 's').credits).toEqual({})
   })
 })

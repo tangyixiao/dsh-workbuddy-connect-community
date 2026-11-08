@@ -55,8 +55,8 @@ export class WorkBuddyCreditSseObserver {
 
 interface CreditEntry {
   credit?: number
-  provider?: string
   account?: string
+  provider?: string
   sessionId?: string
   messageId?: string
 }
@@ -64,25 +64,29 @@ interface CreditEntry {
 /** Short-lived, bounded join between upstream response ids and host messages. */
 export class WorkBuddyCreditLog {
   private readonly entries = new Map<string, CreditEntry>()
+  private epochValue = 0
 
   constructor(private readonly limit = 512) {
     if (!Number.isSafeInteger(limit) || limit < 1) throw new RangeError('credit log limit must be a positive safe integer')
   }
 
   get size(): number { return this.entries.size }
+  get epoch(): number { return this.epochValue }
 
-  observe(responseId: string, credit: number): boolean {
-    if (!validId(responseId) || !Number.isFinite(credit) || credit < 0) return false
+  observe(responseId: string, credit: number, account: string, epoch = this.epochValue): boolean {
+    if (!validId(responseId) || !validId(account) || epoch !== this.epochValue || !Number.isFinite(credit) || credit < 0) return false
     const entry = this.getOrCreate(responseId)
+    if (entry.account !== undefined && entry.account !== account) return false
+    entry.account = account
     entry.credit = credit
-    return entry.provider !== undefined
+    return entry.messageId !== undefined
   }
 
-  associate(provider: string, account: string, responseId: string, sessionId: string, messageId: string): boolean {
-    if (![provider, account, responseId, sessionId, messageId].every(validId)) return false
+  associate(provider: string, responseId: string, sessionId: string, messageId: string): boolean {
+    if (![provider, responseId, sessionId, messageId].every(validId)) return false
     const entry = this.getOrCreate(responseId)
+    if (entry.provider !== undefined && entry.provider !== provider) return false
     entry.provider = provider
-    entry.account = account
     entry.sessionId = sessionId
     entry.messageId = messageId
     return entry.credit !== undefined
@@ -98,7 +102,7 @@ export class WorkBuddyCreditLog {
     return { sessionId, credits }
   }
 
-  clear(): void { this.entries.clear() }
+  clear(): void { this.epochValue++; this.entries.clear() }
 
   removeSession(provider: string, sessionId: string): void {
     for (const [responseId, entry] of this.entries) {

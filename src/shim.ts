@@ -55,8 +55,9 @@ export interface WorkBuddyShimOptions {
   logger?: ShimLogger
   /** Receives only a completed upstream response's observed credit. */
   onCredit?: (responseId: string, credit: number) => void
-  /** Called when the signed-in account changes or a stream becomes stale. */
-  onAccountChange?: () => void
+  /** Captures request account scope and an epoch shared with host reconciliation. */
+  onCreditScoped?: (responseId: string, credit: number, account: string, epoch: number) => void
+  creditEpoch?: () => number
 }
 
 const REQUEST_BODY_LIMIT = 64 * 1024 * 1024
@@ -120,7 +121,6 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
     if (accountIdentity !== identity) {
       accountIdentity = identity
       accountGeneration++
-      options.onAccountChange?.()
     }
     return accountGeneration
   }
@@ -217,6 +217,9 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
   }
 
   async function chatCompletions(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // The host advances this shared epoch during account reconciliation. Read
+    // it before any asynchronous body or credential work can cross a switch.
+    const epochAtRequestStart = options.creditEpoch?.()
     if (!isJsonContentType(req)) {
       writeOpenAIError(res, 415, 'unsupported_media_type', 'Content-Type must be application/json')
       return
@@ -228,7 +231,8 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
       writeOpenAIError(res, 401, 'not_signed_in', String(error))
       return
     }
-    const requestGeneration = identifyAccount(credential)
+    const requestAccount = `${credential.uid}:${credential.enterpriseId ?? ''}`
+    const requestGeneration = epochAtRequestStart ?? identifyAccount(credential)
 
     // The client's disconnect must reach the upstream request, or "Stop" only
     // stops the stream being *read* here: the upstream keeps generating and
@@ -324,16 +328,18 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
       'X-Accel-Buffering': 'no',
     })
     const body = Readable.fromWeb(result.response.body as Parameters<typeof Readable.fromWeb>[0])
-    const creditObserver = options.onCredit === undefined ? undefined : new WorkBuddyCreditSseObserver()
+    const creditObserver = options.onCredit === undefined && options.onCreditScoped === undefined
+      ? undefined
+      : new WorkBuddyCreditSseObserver()
     if (creditObserver !== undefined) {
       body.on('data', (chunk: Buffer | Uint8Array) => creditObserver.push(chunk))
       body.once('end', () => {
-        void store.resolve().then(current => {
-          const currentGeneration = identifyAccount(current)
-          if (currentGeneration !== requestGeneration) return
-          const observed = creditObserver.finish()
-          if (observed !== undefined) options.onCredit!(observed.responseId, observed.credit)
-        }).catch(() => undefined)
+        const currentGeneration = options.creditEpoch?.() ?? accountGeneration
+        if (currentGeneration !== requestGeneration) return
+        const observed = creditObserver.finish()
+        if (observed === undefined) return
+        options.onCreditScoped?.(observed.responseId, observed.credit, requestAccount, requestGeneration)
+        options.onCredit?.(observed.responseId, observed.credit)
       })
     }
     body.on('error', () => {

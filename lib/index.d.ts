@@ -1396,8 +1396,9 @@ interface WorkBuddyShimOptions {
   logger?: ShimLogger;
   /** Receives only a completed upstream response's observed credit. */
   onCredit?: (responseId: string, credit: number) => void;
-  /** Called when the signed-in account changes or a stream becomes stale. */
-  onAccountChange?: () => void;
+  /** Captures request account scope and an epoch shared with host reconciliation. */
+  onCreditScoped?: (responseId: string, credit: number, account: string, epoch: number) => void;
+  creditEpoch?: () => number;
 }
 /**
  * Start the loopback endpoint. Requests carry any bearer; the loopback bind

@@ -28,6 +28,7 @@ import { WorkBuddyVisibilityStore, workbuddyVisibilityPath } from './visibility-
 import { createWorkBuddyAdapter } from './adapter.ts'
 import { createWorkBuddyShim } from './shim.ts'
 import { WorkBuddyCreditLog } from './credit-log.ts'
+import { watchWorkBuddyCreditSessions } from './credit-session.ts'
 import { registerWorkBuddyCreditRoute } from './credit-route.ts'
 import { WorkBuddyProbeService } from './probe-service.ts'
 import { newestFirst, WorkBuddyProbeStore, workbuddyProbePath } from './probe-store.ts'
@@ -43,7 +44,6 @@ import { WORKBUDDY_CONNECT_VERSION } from './version.ts'
 import { versionDrift, versionDriftWarning } from './version-resolve.ts'
 import { legacySettingsOf, modernSettingsOf, resolveModernSettingsEntryId } from './legacy-settings.ts'
 import { CN_VARIANT, WORKBUDDY_VARIANTS, type WorkBuddyVariant } from './variants.ts'
-import type {} from '@deepseek-ai/dsh-session'
 
 export { WORKBUDDY_PROVIDER, WORKBUDDY_STREAM_IDLE_TIMEOUT_MS, createWorkBuddyAdapter, type WorkBuddyAdapter } from './adapter.ts'
 export { createWorkBuddyShim, type WorkBuddyShim } from './shim.ts'
@@ -594,8 +594,8 @@ async function startVariant(ctx: Context, runtime: VariantRuntime): Promise<bool
   const { variant, store, client, catalog, probeService } = runtime
   const shim = createWorkBuddyShim({
     store, client, catalog, logger: ctx.logger,
-    onCredit: (responseId, credit) => runtime.creditLog.observe(responseId, credit),
-    onAccountChange: () => runtime.creditLog.clear(),
+    creditEpoch: () => runtime.creditLog.epoch,
+    onCreditScoped: (responseId, credit, account, epoch) => runtime.creditLog.observe(responseId, credit, account, epoch),
   })
   try {
     await shim.ready
@@ -970,25 +970,7 @@ export function apply(ctx: Context, config: Config): void {
   // to wait for a settings service to exist — exactly what the inject below
   // does. Without one the plugin still serves its models; it simply has no
   // user-editable sections, as before.
-  ctx.inject(['sessions'], sessionsCtx => {
-    const disposeEvent = sessionsCtx.on('session/event', (session, event) => {
-      if (event.type !== 'assistant/message' || event.data.interrupted === true) return
-      const source = event.data.message.source
-      const replay = source.replayState as { response?: { responseId?: unknown } } | undefined
-      const responseId = replay?.response?.responseId
-      if (typeof responseId !== 'string' || responseId.length === 0) return
-      const runtime = runtimes.find(candidate => candidate.variant.id === source.provider)
-      if (runtime === undefined) return
-      void runtime.store.current().then(credential => {
-        if (credential === undefined) return
-        runtime.creditLog.associate(runtime.variant.id, credentialIdentity(credential), responseId, session.id, event.data.message.id)
-      }).catch(() => undefined)
-    })
-    const disposeSession = sessionsCtx.on('session/disposed', session => {
-      for (const runtime of runtimes) runtime.creditLog.removeSession(runtime.variant.id, session.id)
-    })
-    return () => { disposeEvent(); disposeSession() }
-  })
+  watchWorkBuddyCreditSessions(ctx, runtimes.map(runtime => ({ provider: runtime.variant.id, log: runtime.creditLog })))
 
   ctx.inject(['settings'], settingsCtx => {
     /*
