@@ -817,6 +817,12 @@ function ProbeSection({ probe, models, t, onDetect, onClear, busy }: {
       <p style={bodyStyle}>{t('probeIntro')}</p>
       <p style={bodyStyle}>{t('probeConsentHint')}</p>
       {probe.running ? <p style={bodyStyle}>{t('probeRunningGeneric')}</p> : null}
+      {models?.filter(model => (model.declaredEfforts?.length ?? 0) > 0).map(model => (
+        <div key={model.id} style={probeRowStyle}>
+          <span>{model.name}</span>
+          <span style={bodyStyle}>{t('probeDeclaredSuffix', { levels: model.declaredEfforts!.join(' / ') })}</span>
+        </div>
+      ))}
       {/*
         * One row per probeable model, each carrying its own state and button.
         *
