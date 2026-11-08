@@ -200,11 +200,8 @@ export interface WorkBuddyWebModelBadge {
   /**
    * Reasoning levels the catalogue itself declares, when it declares any.
    *
-   * The probe section shows these when a detection cannot decide (the upstream
-   * ignored the sentinel effort): "we could not measure it" is a different
-   * message from "nothing is known", and the declared levels are already in
-   * hand, so the card does not have to send another request to say something
-   * useful.
+   * The reasoning section labels these as catalog declarations, separately
+   * from recorded probe results. No detection is needed for a declared set.
    */
   declaredEfforts?: readonly string[]
   /** The level the upstream applies when a request names none. */

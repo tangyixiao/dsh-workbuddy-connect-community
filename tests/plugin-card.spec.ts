@@ -105,6 +105,16 @@ describe('WorkBuddy plugin card', () => {
     expect(labels.filter(label => label === en.probeStart)).toHaveLength(2)
   })
 
+  it('shows declared availability without a probe result or detect action', async () => {
+    status({ candidates: ['hy3'] })
+    statusBody.models = [{ id: 'declared', name: 'Declared Model', declaredEfforts: ['low', 'max'], defaultEffort: 'max' }]
+    await mount()
+    const tree = JSON.stringify(view!.toJSON())
+    expect(tree).toContain('catalogue declares low / max')
+    expect(buttonLabels().filter(label => label === en.probeStart)).toHaveLength(1)
+    expect(buttonLabels()).not.toContain(en.probeRedetect)
+  })
+
   it('returns the button to its idle label once the run finishes', async () => {
     await mount()
     await press(en.probeStart, 0)

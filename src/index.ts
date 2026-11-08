@@ -31,6 +31,7 @@ import { WorkBuddyCreditLog } from './credit-log.ts'
 import { watchWorkBuddyCreditSessions } from './credit-session.ts'
 import { registerWorkBuddyCreditRoute } from './credit-route.ts'
 import { WorkBuddyProbeService } from './probe-service.ts'
+import { resolveEfforts } from './efforts.ts'
 import { newestFirst, WorkBuddyProbeStore, workbuddyProbePath } from './probe-store.ts'
 import { WorkBuddyUpstreamClient } from './upstream.ts'
 import { piAiVersionWarning } from './pi-ai-guard.ts'
@@ -545,8 +546,7 @@ function catalogSection(runtime: VariantRuntime): WorkBuddyWebCatalog {
  * already have an answer.
  */
 function isProbeCandidate(info: WorkBuddyModelInfo): boolean {
-  if (info.reasoning?.supports !== true) return false
-  return (info.reasoning.supportedEfforts?.length ?? 0) === 0
+  return resolveEfforts(info).probeEligible
 }
 
 /** Compact probe state for one card: consent, candidates, observations. */

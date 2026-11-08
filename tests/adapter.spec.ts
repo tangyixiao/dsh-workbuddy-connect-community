@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveImageAttachmentAccess, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
+import LlmRuntime from '@deepseek-ai/dsh-llm'
+import { Context } from '@deepseek-ai/cordis'
 import { createWorkBuddyAdapter } from '../src/adapter.ts'
 import type { WorkBuddyAdapterOptions } from '../src/adapter.ts'
 import { WorkBuddyCatalog } from '../src/catalog.ts'
@@ -61,6 +63,71 @@ function thinkingModelFor(
 }
 
 describe('WorkBuddy adapter model descriptors', () => {
+  it.each([
+    { defaultEffort: 'max', expected: 'max' },
+    { defaultEffort: 'medium', expected: undefined },
+    { defaultEffort: undefined, expected: undefined },
+  ] as const)('keeps resolved and prepared defaults consistent for $defaultEffort', async ({ defaultEffort, expected }) => {
+    const catalog = new WorkBuddyCatalog([{
+      id: 'model', name: 'Model', contextWindow: 1_000, maxTokens: 128, supportsImages: false,
+      reasoning: {
+        supports: true, onlyReasoning: true, canDisableThinking: false,
+        supportedEfforts: ['low', 'max'],
+        ...(defaultEffort === undefined ? {} : { defaultEffort }),
+      },
+    }])
+    const { adapter } = createWorkBuddyAdapter({
+      catalog, store: {} as WorkBuddyCredentialStore,
+      shim: { baseUrl: () => 'http://127.0.0.1:1', token: () => 'test-token' } as WorkBuddyShim,
+    })
+    const resolved = await adapter.resolveModel(WORKBUDDY_PROVIDER, 'model')
+    const prepared = await adapter.prepareCall(WORKBUDDY_PROVIDER, 'model')
+    expect(resolved.reasoning?.defaultEffort).toBe(expected)
+    expect(prepared.model.reasoning?.defaultEffort).toBe(expected)
+    if (expected === undefined) {
+      expect(resolved.reasoning).not.toHaveProperty('defaultEffort')
+      expect(prepared.model.reasoning).not.toHaveProperty('defaultEffort')
+    }
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter([WORKBUDDY_PROVIDER], adapter)
+    try {
+      const call = await ctx.llm.prepareCall({ provider: WORKBUDDY_PROVIDER, model: 'model' })
+      expect(call.config.reasoningEffort).toBe(expected)
+      let body: Record<string, unknown> | undefined
+      vi.stubGlobal('fetch', vi.fn(async (_input: unknown, init?: RequestInit) => {
+        body = JSON.parse(String(init?.body)) as Record<string, unknown>
+        return new Response('data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })
+      }))
+      for await (const _chunk of call.stream({ ...call.config, messages: [] })) {}
+      expect(body?.['reasoning_effort']).toBe(expected)
+      if (expected === undefined) expect(body).not.toHaveProperty('reasoning_effort')
+      const explicit = await ctx.llm.prepareCall({ provider: WORKBUDDY_PROVIDER, model: 'model', reasoningEffort: 'low' as never })
+      expect(explicit.config.reasoningEffort).toBe('low')
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('keeps prepared metadata bound to the upstream default captured before refresh', async () => {
+    const original = {
+      id: 'model', name: 'Model', contextWindow: 1000, maxTokens: 128, supportsImages: false,
+      reasoning: { supports: true, onlyReasoning: true, canDisableThinking: false, supportedEfforts: ['low', 'max'] as const, defaultEffort: 'max' as const },
+    }
+    const catalog = new WorkBuddyCatalog([original])
+    const { adapter, invalidate } = createWorkBuddyAdapter({
+      catalog, store: {} as WorkBuddyCredentialStore,
+      shim: { baseUrl: () => 'http://127.0.0.1:1', token: () => 'test-token' } as WorkBuddyShim,
+    })
+    const preparing = adapter.prepareCall(WORKBUDDY_PROVIDER, 'model')
+    catalog.set([{ ...original, reasoning: { ...original.reasoning, supportedEfforts: ['low'], defaultEffort: 'low' } }])
+    invalidate()
+    const prepared = await preparing
+    expect(prepared.model.reasoning?.defaultEffort).toBe('max')
+    expect((await adapter.prepareCall(WORKBUDDY_PROVIDER, 'model')).model.reasoning?.defaultEffort).toBe('low')
+
+  })
+
   it('uses WorkBuddy\'s max_tokens output-cap field', () => {
     const catalog = new WorkBuddyCatalog([{
       id: 'model', name: 'Model', contextWindow: 1_000, maxTokens: 128_000,

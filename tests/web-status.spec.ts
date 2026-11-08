@@ -71,6 +71,22 @@ async function startStatusServer(overrides: Partial<WorkBuddyStatusRouteOptions>
 }
 
 describe('context capacity reporting', () => {
+  it('reports declared reasoning availability only for reasoning-capable models', async () => {
+    const port = await startStatusServer({
+      models: () => [
+        { id: 'declared', name: 'Declared', contextWindow: 1000, maxTokens: 100, supportsImages: false,
+          reasoning: { supports: true, onlyReasoning: true, canDisableThinking: false, supportedEfforts: ['low', 'max'], defaultEffort: 'max' } },
+        { id: 'plain', name: 'Plain', contextWindow: 1000, maxTokens: 100, supportsImages: false,
+          reasoning: { supports: false, onlyReasoning: false, canDisableThinking: false, supportedEfforts: ['high'] } },
+      ],
+    })
+    const response = await requestOnce({ port, method: 'GET', headers: { host: `127.0.0.1:${String(port)}` } })
+    const body = JSON.parse(response.body)
+    expect(body.models[0]).toMatchObject({ declaredEfforts: ['low', 'max'], defaultEffort: 'max' })
+    expect(body.models[1]).not.toHaveProperty('declaredEfforts')
+    expect(body.probe).toBeUndefined()
+  })
+
   /**
    * The card needs every model's capacity, not only the promoted ones: the
    * models where capacity matters (a 200k model beside 1M siblings) carry no

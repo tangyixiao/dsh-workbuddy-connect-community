@@ -9,14 +9,15 @@
 import { createProvider } from '@earendil-works/pi-ai'
 import type { Api, AuthContext, CredentialStore, Model, ModelThinkingLevel, Provider, ThinkingLevelMap } from '@earendil-works/pi-ai'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
-import { resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
-import type { LlmModelInfo, LlmResolvedModelInfo, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
+import { ReasoningEffortId, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
+import type { LlmModelInfo, LlmResolvedModelInfo, PreparedAdapterCall, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import type { PiAiAdapterOptions, ResolvedPiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { WorkBuddyCredentialStore } from './auth.ts'
 import type { WorkBuddyCatalog, WorkBuddyModelInfo } from './catalog.ts'
 import type { WorkBuddyProbeRecord } from './probe-store.ts'
+import { resolveDefaultEffort, resolveEfforts } from './efforts.ts'
 import type { WorkBuddyShim } from './shim.ts'
 import { normalizeCredits, type WorkBuddyRegion } from './upstream.ts'
 
@@ -253,52 +254,16 @@ export function reasoningFields(
   observed?: WorkBuddyProbeRecord,
   region: WorkBuddyRegion = 'cn',
 ): { reasoning: boolean; thinkingLevelMap?: ThinkingLevelMap } {
-  const reasoning = info.reasoning
-  if (reasoning === undefined || reasoning.supports !== true) {
-    // Not a reasoning model: pi-ai reads a falsy `reasoning` as "off only".
-    return { reasoning: false }
-  }
-  const declared = reasoning.supportedEfforts
-  const efforts = declared !== undefined && declared.length > 0
-    ? declared
-    // Only a validating observation may supply a set, and only for rows the
-    // upstream left undeclared.
-    : observed?.validation === 'validating' && observed.efforts.length > 0
-      ? observed.efforts
-      : undefined
-  if (efforts === undefined) {
-    // Undeclared and unobserved (or observed as non-validating): no thinking
-    // control, and no `reasoning_effort` on the wire.
-    return { reasoning: false }
-  }
+  const resolved = resolveEfforts(info, observed, region)
+  if (resolved.efforts.length === 0) return { reasoning: false }
   const map: Record<ModelThinkingLevel, string | null> = {
-    // Probing never grants `off`; only an explicit declaration does.
-    //
-    // On CN, `onlyReasoning` vetoes it even when declared (#87). That catalog
-    // ships both flags true on `deepseek-v4.1-flash` and `kimi-k2.8-preview`,
-    // which cannot both hold — a model that only ever reasons has no
-    // non-thinking mode to select — and the endpoint sides with
-    // `onlyReasoning`, answering HTTP 400 (「模型不支持该思考强度」) for every
-    // `off` request. Offering a level that is certain to fail is worse than not
-    // offering it, so the contradiction is resolved toward the flag the wire
-    // agrees with.
-    //
-    // Scoped to CN on purpose: the international catalog does not carry this
-    // contradiction, and hiding Off there would remove a level those models
-    // can still use. The request layer strips the spelling in both regions
-    // (`dropUnsupportedEffort`), so a model whose flags flip between catalog
-    // reads cannot put `off` on the wire either way.
-    off: reasoning.canDisableThinking === true
-      && (region !== 'cn' || reasoning.onlyReasoning !== true)
-      && declared !== undefined && declared.length > 0 ? 'off' : null,
-    // `minimal` is not in the upstream effort vocabulary (EFFORT_VALUES), so
-    // no declared set — and no probe candidate — can ever contain it.
+    off: resolved.off ? 'off' : null,
     minimal: null,
-    low: efforts.includes('low') ? 'low' : null,
-    medium: efforts.includes('medium') ? 'medium' : null,
-    high: efforts.includes('high') ? 'high' : null,
-    xhigh: efforts.includes('xhigh') ? 'xhigh' : null,
-    max: efforts.includes('max') ? 'max' : null,
+    low: resolved.efforts.includes('low') ? 'low' : null,
+    medium: resolved.efforts.includes('medium') ? 'medium' : null,
+    high: resolved.efforts.includes('high') ? 'high' : null,
+    xhigh: resolved.efforts.includes('xhigh') ? 'xhigh' : null,
+    max: resolved.efforts.includes('max') ? 'max' : null,
   }
   return { reasoning: true, thinkingLevelMap: map as ThinkingLevelMap }
 }
@@ -421,10 +386,10 @@ export function createWorkBuddyAdapter(options: WorkBuddyAdapterOptions): WorkBu
  *
  * `PiAiAdapter.listModels()` and `.resolveModel()` build their answers straight
  * from the pi-ai descriptors, which carry no billing fact, so the rate is
- * layered on here by looking the model up in the live catalog. Both overrides
- * delegate to `super` and then rewrite only the display fields, so streaming,
- * capability resolution, and effort mapping stay exactly as `dsh-llm-pi-ai`
- * implements them.
+ * layered on here by looking the model up in the live catalog. Resolution and
+ * preparation also share a valid upstream effort default. The base prepared
+ * stream retains its captured pi-ai generation; DSH selects its request effort
+ * from the returned model metadata.
  *
  * A model missing from the catalog (an id the shim would serve but the last
  * upstream refresh did not list) falls through with its name untouched rather
@@ -461,10 +426,31 @@ class WorkBuddyPiAiAdapter extends PiAiAdapter {
     })
   }
 
-  override async resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo> {
-    const resolved = await super.resolveModel(provider, model, signal)
-    const info = this.infoFor(model)
+  /** Apply catalog display and a valid upstream default to either resolution seam. */
+  private withCatalogInfo(resolved: LlmResolvedModelInfo, info: WorkBuddyModelInfo | undefined): LlmResolvedModelInfo {
     if (info === undefined) return resolved
-    return { ...resolved, name: withCatalogDisplay(resolved.name, info) }
+    // Validate against the captured generation's offered levels, even if a
+    // catalog refresh or observation changed while resolution was pending.
+    const effort = resolveDefaultEffort(info, resolved.reasoning?.efforts.map(entry => entry.id) ?? [])
+    return {
+      ...resolved,
+      name: withCatalogDisplay(resolved.name, info),
+      ...effort === undefined || resolved.reasoning === undefined ? {} : {
+        reasoning: { ...resolved.reasoning, defaultEffort: ReasoningEffortId(effort) },
+      },
+    }
+  }
+
+  override async resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo> {
+    const info = this.infoFor(model)
+    return this.withCatalogInfo(await super.resolveModel(provider, model, signal), info)
+  }
+
+  override async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall> {
+    const info = this.infoFor(model)
+    const prepared = await super.prepareCall(provider, model, signal)
+    // DSH selects an omitted request effort from this captured model default.
+    // Preserve the base stream closure and its existing dispatch behavior.
+    return { ...prepared, model: this.withCatalogInfo(prepared.model, info) }
   }
 }

@@ -13,6 +13,7 @@ import type { WorkBuddyCredentialStore } from './auth.ts'
 import type { WorkBuddyUpstreamClient } from './upstream.ts'
 import { normalizeCredits } from './upstream.ts'
 import type { WorkBuddyModelInfo } from './catalog.ts'
+import { resolveEfforts } from './efforts.ts'
 import { hostIsLoopback, originIsLoopback } from './loopback.ts'
 import { withWorkBuddyHostAuth } from './host-route-auth.ts'
 import { WORKBUDDY_STATUS_PATH } from './status-paths.ts'
@@ -132,6 +133,7 @@ export async function workBuddyWebStatus(
   const modelsField: readonly WorkBuddyWebModelBadge[] = models
     .map(model => {
       const rate = normalizeCredits(model.billing?.credits)
+      const reasoning = resolveEfforts(model)
       // The largest window the upstream declares for this model, when it
       // declares alternatives; equal to `contextWindow` otherwise, and omitted
       // when the upstream said nothing.
@@ -151,8 +153,8 @@ export async function workBuddyWebStatus(
         ...model.billing?.rateUnknown === true ? { rateUnknown: true as const } : {},
         // Declared reasoning levels ride along so the probe section can answer
         // "what is known" when a detection comes back undecided.
-        ...(model.reasoning?.supportedEfforts?.length ?? 0) > 0
-          ? { declaredEfforts: model.reasoning!.supportedEfforts! }
+        ...reasoning.source === 'declared'
+          ? { declaredEfforts: reasoning.efforts }
           : {},
         ...model.reasoning?.defaultEffort !== undefined
           ? { defaultEffort: model.reasoning.defaultEffort }
