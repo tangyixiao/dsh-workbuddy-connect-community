@@ -350,7 +350,7 @@ export function createWorkBuddyAdapter(options: WorkBuddyAdapterOptions): WorkBu
 
   let profiles = new Map<string, ResolvedPiAiProviderProfile>([[providerId, profile]])
 
-  const adapter = new WorkBuddyPiAiAdapter(catalog, hidden ?? (() => []), {
+  const adapterOptions: PiAiAdapterOptions = {
     profiles: () => profiles,
     auth: INERT_AUTH,
     // Resolve the shim's per-process shared secret as the OpenAI apiKey so
@@ -370,6 +370,16 @@ export function createWorkBuddyAdapter(options: WorkBuddyAdapterOptions): WorkBu
         },
       },
     ...(resolveImageAccess === undefined ? {} : { resolveImageAccess }),
+  }
+
+  const adapter = new WorkBuddyPiAiAdapter(catalog, hidden ?? (() => []), adapterOptions, (requestedProvider, model, signal) => {
+    // A prepared call owns one model descriptor. The live provider remains
+    // unchanged, so concurrent calls prepared after a refresh see new facts.
+    const models = buildModels().filter(entry => entry.id === model)
+    const capturedProvider: Provider = { ...provider, getModels: () => models }
+    const capturedProfiles = new Map([[providerId, { ...profile, piProvider: capturedProvider }]])
+    const capturedAdapter = new PiAiAdapter({ ...adapterOptions, profiles: () => capturedProfiles })
+    return capturedAdapter.prepareCall(requestedProvider, model, signal)
   })
 
   return {
@@ -387,9 +397,9 @@ export function createWorkBuddyAdapter(options: WorkBuddyAdapterOptions): WorkBu
  * `PiAiAdapter.listModels()` and `.resolveModel()` build their answers straight
  * from the pi-ai descriptors, which carry no billing fact, so the rate is
  * layered on here by looking the model up in the live catalog. Resolution and
- * preparation also share a valid upstream effort default. The base prepared
- * stream retains its captured pi-ai generation; DSH selects its request effort
- * from the returned model metadata.
+ * preparation also share a valid upstream effort default. Prepared dispatch
+ * uses a separate pi-ai provider holding one captured model descriptor; DSH
+ * selects its request effort from the matching returned model metadata.
  *
  * A model missing from the catalog (an id the shim would serve but the last
  * upstream refresh did not list) falls through with its name untouched rather
@@ -401,6 +411,7 @@ class WorkBuddyPiAiAdapter extends PiAiAdapter {
     private readonly catalog: WorkBuddyCatalog,
     private readonly hidden: () => readonly string[],
     options: ConstructorParameters<typeof PiAiAdapter>[0],
+    private readonly prepareSnapshot: PiAiAdapter['prepareCall'],
   ) {
     super(options)
   }
@@ -448,9 +459,9 @@ class WorkBuddyPiAiAdapter extends PiAiAdapter {
 
   override async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall> {
     const info = this.infoFor(model)
-    const prepared = await super.prepareCall(provider, model, signal)
+    const prepared = await this.prepareSnapshot(provider, model, signal)
     // DSH selects an omitted request effort from this captured model default.
-    // Preserve the base stream closure and its existing dispatch behavior.
+    // The delegated SDK closure reads only this call's captured descriptor.
     return { ...prepared, model: this.withCatalogInfo(prepared.model, info) }
   }
 }

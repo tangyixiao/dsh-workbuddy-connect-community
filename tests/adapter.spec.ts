@@ -104,12 +104,14 @@ describe('WorkBuddy adapter model descriptors', () => {
       if (expected === undefined) expect(body).not.toHaveProperty('reasoning_effort')
       const explicit = await ctx.llm.prepareCall({ provider: WORKBUDDY_PROVIDER, model: 'model', reasoningEffort: 'low' as never })
       expect(explicit.config.reasoningEffort).toBe('low')
+      for await (const _chunk of explicit.stream({ ...explicit.config, messages: [] })) {}
+      expect(body?.['reasoning_effort']).toBe('low')
     } finally {
       await ctx.fiber.dispose()
     }
   })
 
-  it('keeps prepared metadata bound to the upstream default captured before refresh', async () => {
+  it('dispatches old and new prepared defaults independently after a catalog refresh', async () => {
     const original = {
       id: 'model', name: 'Model', contextWindow: 1000, maxTokens: 128, supportsImages: false,
       reasoning: { supports: true, onlyReasoning: true, canDisableThinking: false, supportedEfforts: ['low', 'max'] as const, defaultEffort: 'max' as const },
@@ -119,13 +121,36 @@ describe('WorkBuddy adapter model descriptors', () => {
       catalog, store: {} as WorkBuddyCredentialStore,
       shim: { baseUrl: () => 'http://127.0.0.1:1', token: () => 'test-token' } as WorkBuddyShim,
     })
-    const preparing = adapter.prepareCall(WORKBUDDY_PROVIDER, 'model')
-    catalog.set([{ ...original, reasoning: { ...original.reasoning, supportedEfforts: ['low'], defaultEffort: 'low' } }])
-    invalidate()
-    const prepared = await preparing
-    expect(prepared.model.reasoning?.defaultEffort).toBe('max')
-    expect((await adapter.prepareCall(WORKBUDDY_PROVIDER, 'model')).model.reasoning?.defaultEffort).toBe('low')
-
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter([WORKBUDDY_PROVIDER], adapter)
+    try {
+      const older = await ctx.llm.prepareCall({ provider: WORKBUDDY_PROVIDER, model: 'model' })
+      catalog.set([{ ...original, reasoning: { ...original.reasoning, supportedEfforts: ['low'], defaultEffort: 'low' } }])
+      invalidate()
+      const newer = await ctx.llm.prepareCall({ provider: WORKBUDDY_PROVIDER, model: 'model' })
+      expect(older.config.reasoningEffort).toBe('max')
+      expect(newer.config.reasoningEffort).toBe('low')
+      const bodies: Record<string, unknown>[] = []
+      let release: () => void = () => {}
+      const bothDispatched = new Promise<void>(resolve => { release = resolve })
+      vi.stubGlobal('fetch', vi.fn(async (_input: unknown, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+        if (bodies.length === 2) release()
+        // Time-bound the barrier so the RED case reports its missing dispatch.
+        await Promise.race([bothDispatched, new Promise(resolve => setTimeout(resolve, 50))])
+        return new Response('data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })
+      }))
+      const finishes = await Promise.all([older, newer].map(async call => {
+        const chunks = []
+        for await (const chunk of call.stream({ ...call.config, messages: [] })) chunks.push(chunk)
+        return chunks
+      }))
+      expect(bodies.map(body => body['reasoning_effort']).sort()).toEqual(['low', 'max'])
+      expect(JSON.stringify(finishes)).not.toContain('UNSUPPORTED_REASONING_EFFORT')
+    } finally {
+      await ctx.fiber.dispose()
+    }
   })
 
   it('uses WorkBuddy\'s max_tokens output-cap field', () => {
