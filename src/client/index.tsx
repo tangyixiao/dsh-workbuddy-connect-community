@@ -25,10 +25,12 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import { WorkBuddyProbeControl } from './WorkBuddyProbeControl.tsx'
 import { WorkBuddyUpdateOverlay } from './WorkBuddyUpdateNotice.tsx'
 import { WorkBuddyUpdateStore } from './update-store.ts'
+import { WorkBuddyMessageCredit } from './WorkBuddyMessageCredit.tsx'
 import { WORKBUDDY_CONNECT_VERSION } from '../version.ts'
 import { WorkBuddyConfigPage } from './WorkBuddyConfigPage.tsx'
 import { CARD_VARIANTS, WorkBuddyPluginCard } from './WorkBuddyPluginCard.tsx'
@@ -259,4 +261,17 @@ export function apply(ctx: ClientContext): void {
       })
     })
   })
+  for (const variant of CARD_VARIANTS) {
+    guardClientContribution(`message credit for ${variant.id}`, () => {
+      ctx.slots.inject('conversation.chat.assistant-actions', () => (
+        guardClientContribution(`message credit for ${variant.id}`, () => ctx.slots.register({
+          name: 'conversation.chat.assistant-actions',
+          id: `workbuddy-credit-${variant.id}`,
+          order: 90,
+          locale: namespace,
+          inject: sessionId => ({ sessionId, provider: variant.id, t }),
+        }, WorkBuddyMessageCredit)) ?? NOOP_DISPOSER
+      ))
+    })
+  }
 }

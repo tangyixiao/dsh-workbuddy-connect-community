@@ -23,6 +23,10 @@ export const WORKBUDDY_PROBE_PATH = '/plugins/dsh-workbuddy-connect/probe'
 export const WORKBUDDY_AI_STATUS_PATH = '/plugins/dsh-workbuddy-connect/ai/status'
 export const WORKBUDDY_AI_PROBE_PATH = '/plugins/dsh-workbuddy-connect/ai/probe'
 
+/** Owner-authenticated, same-origin per-session observed credit route. */
+export const WORKBUDDY_CREDITS_PATH = '/plugins/dsh-workbuddy-connect/credits'
+export const WORKBUDDY_AI_CREDITS_PATH = '/plugins/dsh-workbuddy-connect/ai/credits'
+
 /**
  * Same-origin route backing the browser's update reminder.
  *

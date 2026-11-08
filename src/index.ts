@@ -27,6 +27,9 @@ import { workbuddyCatalogPath, WorkBuddyCatalogStore } from './catalog-store.ts'
 import { WorkBuddyVisibilityStore, workbuddyVisibilityPath } from './visibility-store.ts'
 import { createWorkBuddyAdapter } from './adapter.ts'
 import { createWorkBuddyShim } from './shim.ts'
+import { WorkBuddyCreditLog } from './credit-log.ts'
+import { watchWorkBuddyCreditSessions } from './credit-session.ts'
+import { registerWorkBuddyCreditRoute } from './credit-route.ts'
 import { WorkBuddyProbeService } from './probe-service.ts'
 import { newestFirst, WorkBuddyProbeStore, workbuddyProbePath } from './probe-store.ts'
 import { WorkBuddyUpstreamClient } from './upstream.ts'
@@ -35,7 +38,7 @@ import { registerWorkBuddyStatusRoute } from './web-status.ts'
 import { registerWorkBuddyUpdateRoute } from './update-route.ts'
 import { createProbeKey, registerWorkBuddyProbeRoute } from './probe-route.ts'
 import type { WorkBuddyModelInfo } from './catalog.ts'
-import type { WorkBuddyWebCatalog, WorkBuddyWebProbeSection } from './status-paths.ts'
+import { WORKBUDDY_AI_CREDITS_PATH, WORKBUDDY_CREDITS_PATH, type WorkBuddyWebCatalog, type WorkBuddyWebProbeSection } from './status-paths.ts'
 import { clearHostHeartbeat, writeHostHeartbeat } from './host-heartbeat.ts'
 import { WORKBUDDY_CONNECT_VERSION } from './version.ts'
 import { versionDrift, versionDriftWarning } from './version-resolve.ts'
@@ -352,6 +355,7 @@ interface VariantRuntime {
    */
   visibilityStore: WorkBuddyVisibilityStore
   contextWindowStore: ContextWindowStore
+  creditLog: WorkBuddyCreditLog
   /**
    * The visibility account key currently in effect (`uid:enterpriseId`), or
    * undefined when signed out or the credential carries no uid. Read per call,
@@ -500,6 +504,7 @@ function createVariantRuntime(
     savedCatalogs,
     visibilityStore,
     contextWindowStore: new ContextWindowStore(workbuddyVisibilityPath(`${variant.visibilityFilename}.context-windows`)),
+    creditLog: new WorkBuddyCreditLog(),
     account: () => accountOf(variant.id),
     fallback,
     catalogSource: 'fallback',
@@ -587,7 +592,11 @@ function probeSection(runtime: VariantRuntime, consent: boolean): WorkBuddyWebPr
  */
 async function startVariant(ctx: Context, runtime: VariantRuntime): Promise<boolean> {
   const { variant, store, client, catalog, probeService } = runtime
-  const shim = createWorkBuddyShim({ store, client, catalog, logger: ctx.logger })
+  const shim = createWorkBuddyShim({
+    store, client, catalog, logger: ctx.logger,
+    creditEpoch: () => runtime.creditLog.epoch,
+    onCreditScoped: (responseId, credit, account, epoch) => runtime.creditLog.observe(responseId, credit, account, epoch),
+  })
   try {
     await shim.ready
   } catch (error: unknown) {
@@ -764,6 +773,7 @@ export function apply(ctx: Context, config: Config): void {
     const id = runtime.variant.id
     const known = lastIdentities.get(id)
     if (known === identity) return
+    runtime.creditLog.clear()
     const hadCredential = known !== undefined
     if (identity === undefined) lastIdentities.delete(id)
     else lastIdentities.set(id, identity)
@@ -824,6 +834,12 @@ export function apply(ctx: Context, config: Config): void {
     ...drift === undefined ? {} : { manifestVersion: drift.manifest },
   })
     for (const runtime of runtimes) {
+      registerWorkBuddyCreditRoute(webCtx, {
+        path: runtime.variant.id === CN_VARIANT.id ? WORKBUDDY_CREDITS_PATH : WORKBUDDY_AI_CREDITS_PATH,
+        provider: runtime.variant.id,
+        log: runtime.creditLog,
+        account: runtime.account,
+      })
       registerWorkBuddyStatusRoute(webCtx, {
         path: runtime.variant.statusPath,
         store: runtime.store,
@@ -954,6 +970,8 @@ export function apply(ctx: Context, config: Config): void {
   // to wait for a settings service to exist — exactly what the inject below
   // does. Without one the plugin still serves its models; it simply has no
   // user-editable sections, as before.
+  watchWorkBuddyCreditSessions(ctx, runtimes.map(runtime => ({ provider: runtime.variant.id, log: runtime.creditLog })))
+
   ctx.inject(['settings'], settingsCtx => {
     /*
      * DSH 0.1.7 removed the provider-service section API (`installSection`,
@@ -1173,6 +1191,7 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.effect(() => () => {
     stopped = true
+    for (const runtime of runtimes) runtime.creditLog.clear()
     for (const timer of timers) clearInterval(timer)
     timers.length = 0
     void clearHostHeartbeat()
