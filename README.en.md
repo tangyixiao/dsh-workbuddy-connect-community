@@ -4,7 +4,7 @@
 
 <p align="center">Reuse WorkBuddy or WorkBuddy AI desktop sign-in inside DSH, including product-specific models, context choices and observed usage.</p>
 
-<p align="center">[简体中文](README.md) · [English](README.en.md)</p>
+<p align="center"><a href="README.md">简体中文</a> · <a href="README.en.md">English</a></p>
 
 [![Stars](https://img.shields.io/github/stars/tangyixiao/dsh-workbuddy-connect-community?style=flat)](https://github.com/tangyixiao/dsh-workbuddy-connect-community/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/tangyixiao/dsh-workbuddy-connect-community/check.yml?branch=main)](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions/workflows/check.yml) [![License](https://img.shields.io/github/license/tangyixiao/dsh-workbuddy-connect-community)](LICENSE) [![npm](https://img.shields.io/npm/v/dsh-workbuddy-connect-community)](https://www.npmjs.com/package/dsh-workbuddy-connect-community)
 
