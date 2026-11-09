@@ -46,7 +46,9 @@
     "README.en.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.txt",
-    "assets/logo.webp"
+    "assets/logo.webp",
+    "assets/NOTICE.md",
+    "assets/LICENSE-WHALE-ARTWORK"
   ],
   "license": "MIT",
   "publishConfig": {

@@ -36,6 +36,7 @@ it.each([
   ['missing DSH peer', (pkg: any) => { delete pkg.peerDependencies['@deepseek-ai/dsh-settings'] }, 'DSH peer'],
   ['widened DSH peer', (pkg: any) => { pkg.peerDependencies['@deepseek-ai/dsh-llm'] = '*' }, 'DSH peer'],
   ['missing client export', (pkg: any) => { delete pkg.exports['./client'] }, 'client export'],
+  ['missing logo export', (pkg: any) => { delete pkg.exports['./icon'] }, 'logo entry'],
   ['unsafe files whitelist', (pkg: any) => { pkg.files.push('src') }, 'files whitelist'],
 ] as const)('rejects %s', (_name, mutate, diagnostic) => {
   mutate(manifest)

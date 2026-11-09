@@ -5,3 +5,7 @@ coverage/
 AGENTS.md
 .mimosa/
 .zcode/
+
+work/
+
+__pycache__/
