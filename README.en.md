@@ -1,3 +1,5 @@
+<p><img src="assets/logo.webp" width="96" height="96" alt="dsh-workbuddy-connect-community logo"></p>
+
 # DSH WorkBuddy Connect Community
 
 [中文](./README.md) | English

@@ -36,7 +36,8 @@
     },
     "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./icon": "./assets/logo.webp"
   },
   "files": [
     "lib",
@@ -44,7 +45,8 @@
     "README.md",
     "README.en.md",
     "LICENSE",
-    "THIRD_PARTY_NOTICES.txt"
+    "THIRD_PARTY_NOTICES.txt",
+    "assets/logo.webp"
   ],
   "license": "MIT",
   "publishConfig": {
@@ -133,5 +135,6 @@
     "tsdown": "^0.22.2",
     "typescript": "^5.9.3",
     "vitest": "^4.1.8"
-  }
+  },
+  "icon": "./assets/logo.webp"
 }
