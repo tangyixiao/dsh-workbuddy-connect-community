@@ -1,8 +1,10 @@
-<p align="center"><img src="assets/logo.webp" width="128" height="128" alt="WorkBuddy Connect Community logo"></p>
+<p align="center"><img src="assets/logo.webp" width="192" height="192" alt="WorkBuddy Connect Community logo"></p>
 
 <h1 align="center">WorkBuddy Connect Community</h1>
 
 <p align="center">Reuse WorkBuddy or WorkBuddy AI desktop sign-in inside DSH, including product-specific models, context choices and observed usage.</p>
+
+<p align="center"><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community"><img src="docs/assets/banner-en.svg" width="100%" alt="WorkBuddy Connect Community — Project and usage guide"></a></p>
 
 <p align="center"><a href="README.md">简体中文</a> · <a href="README.en.md">English</a></p>
 

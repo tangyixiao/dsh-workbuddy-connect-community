@@ -1,8 +1,10 @@
-<p align="center"><img src="assets/logo.webp" width="128" height="128" alt="WorkBuddy Connect Community logo"></p>
+<p align="center"><img src="assets/logo.webp" width="192" height="192" alt="WorkBuddy Connect Community logo"></p>
 
 <h1 align="center">WorkBuddy Connect Community</h1>
 
 <p align="center">在 DSH 中沿用 WorkBuddy / WorkBuddy AI 桌面登录，接入两个产品的模型、上下文选项与可观测用量。</p>
+
+<p align="center"><a href="https://github.com/tangyixiao/dsh-workbuddy-connect-community"><img src="docs/assets/banner-zh-CN.svg" width="100%" alt="WorkBuddy Connect Community — 查看项目与使用说明"></a></p>
 
 <p align="center"><a href="README.md">简体中文</a> · <a href="README.en.md">English</a></p>
 
