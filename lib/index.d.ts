@@ -1,3 +1,17 @@
+/**
+ * WorkBuddy models for DeepSeek Harness, reusing the WorkBuddy desktop apps'
+ * sign-in. Registers one provider per product variant — `workbuddy` for the CN
+ * app and `workbuddy-ai` for the international one — while streaming, tool
+ * calls, compaction, and permissions stay Harness-owned.
+ *
+ * The two variants are assembled by the same factory and differ only in their
+ * {@link WorkBuddyVariant} descriptor: each gets its own credential store,
+ * catalog, upstream client, shim, adapter, probe state, and routes. Neither
+ * variant's startup, catalog fetch, or credential state can stop the other from
+ * registering — a user with only one app installed sees only that group.
+ *
+ * @module dsh-workbuddy-connect
+ */
 import z from "@deepseek-ai/schemastery";
 import { ResolvedRetryPolicy, RetryPolicyConfig } from "@deepseek-ai/dsh-llm";
 import "@earendil-works/pi-ai";
@@ -5,7 +19,6 @@ import { PiAiAdapter, PiAiAdapterOptions } from "@deepseek-ai/dsh-llm-pi-ai";
 import { Context } from "@deepseek-ai/cordis";
 import { SettingsNamespace } from "@deepseek-ai/dsh-settings";
 import { AttachmentStore } from "@deepseek-ai/dsh-attachment";
-//#region src/status-paths.d.ts
 /**
  * Why no credential is usable, as a closed enum the browser half switches on.
  *
@@ -31,10 +44,8 @@ type WorkBuddySignedOutReasonCode =
 'electron-path-invalid' |
 /** Discovery could not finish: tool missing, timeout, output overflow, unreadable plist. */
 'electron-discovery-incomplete';
-//#endregion
-//#region src/app-version.d.ts
 /** Basename of the saved version under `$DSH_HOME`. */
-declare const WORKBUDDY_APP_VERSION_FILENAME = ".workbuddy-ai-version.json";
+export declare const WORKBUDDY_APP_VERSION_FILENAME = ".workbuddy-ai-version.json";
 /** Where the version came from, for `doctor` output. */
 type WorkBuddyAppVersionSource = 'installed' | 'saved' | 'fallback';
 /** Resolved version plus provenance. */
@@ -51,7 +62,7 @@ interface AppVersionInfo {
  * the request (CR, LF, spaces beyond the separator) or inject a second UA
  * token must never pass. The App's own version is always `N.N.N` or `N.N.N.N`.
  */
-declare function validAppVersion(value: unknown): value is string;
+export declare function validAppVersion(value: unknown): value is string;
 /**
  * Read `CFBundleShortVersionString` out of an `Info.plist`.
  *
@@ -60,7 +71,7 @@ declare function validAppVersion(value: unknown): value is string;
  * returning the wrong one. A binary plist has no `<dict>` in its bytes and is
  * reported as unreadable (the saved value then applies) rather than guessed at.
  */
-declare function readBundleVersion(plistPath: string): Promise<string | undefined>;
+export declare function readBundleVersion(plistPath: string): Promise<string | undefined>;
 /**
  * The installed international App's version, or `undefined` when it is not
  * installed (or not readable).
@@ -69,7 +80,7 @@ declare function readBundleVersion(plistPath: string): Promise<string | undefine
  * returns `undefined` there and the saved/fallback value is used instead of
  * guessing a path — the same discipline the credential discovery follows.
  */
-declare function installedAppVersion(): Promise<{
+export declare function installedAppVersion(): Promise<{
   version: string;
   bundle: string;
 } | undefined>;
@@ -92,7 +103,7 @@ interface ResolveAppVersionOptions {
  * on. The write is best-effort: failing to cache a version must never fail the
  * catalog request that asked for it.
  */
-declare function resolveAppVersion(options?: ResolveAppVersionOptions): Promise<AppVersionInfo>;
+export declare function resolveAppVersion(options?: ResolveAppVersionOptions): Promise<AppVersionInfo>;
 /**
  * Build the App-shaped User-Agent for catalog requests.
  *
@@ -100,9 +111,7 @@ declare function resolveAppVersion(options?: ResolveAppVersionOptions): Promise<
  * document; the space form is rejected with 400/12403. Throws on an invalid
  * version rather than sending a malformed header.
  */
-declare function appUserAgent(version: string): string;
-//#endregion
-//#region src/client-identity.d.ts
+export declare function appUserAgent(version: string): string;
 /**
  * Compiled-in CN fallback for the `WorkBuddy/<v>` tokens.
  *
@@ -110,7 +119,7 @@ declare function appUserAgent(version: string): string;
  * 2026-09-11); like the international fallback it is a shape requirement,
  * not a currency claim — the gateway has not been observed to branch on it.
  */
-declare const FALLBACK_CN_APP_VERSION = "5.5.6";
+export declare const FALLBACK_CN_APP_VERSION = "5.5.6";
 /**
  * Basename of the CN saved-version cache under `$DSH_HOME`.
  *
@@ -119,7 +128,7 @@ declare const FALLBACK_CN_APP_VERSION = "5.5.6";
  * version into it would relabel that request. The two caches stay isolated
  * the way the per-variant catalog files are.
  */
-declare const CN_APP_VERSION_FILENAME = ".workbuddy-app-version.json";
+export declare const CN_APP_VERSION_FILENAME = ".workbuddy-app-version.json";
 /** The resolved identity a chat request presents as. */
 interface ChatIdentity {
   /** Desktop App version; drives the desktop UA and `X-IDE-Version`. */
@@ -134,7 +143,7 @@ interface ChatIdentity {
  * own metadata uses that spelling; anything with whitespace, CR or LF never
  * passes — the value is interpolated into an HTTP header.
  */
-declare function validCliVersion(value: unknown): value is string;
+export declare function validCliVersion(value: unknown): value is string;
 /**
  * The bundled agent CLI's real version, or `undefined` when it does not resolve.
  *
@@ -144,7 +153,7 @@ declare function validCliVersion(value: unknown): value is string;
  * or invalid metadata yields `undefined` (the caller drops the `CLI/…` UA
  * token rather than guessing).
  */
-declare function readCliVersion(bundle: string): Promise<string | undefined>;
+export declare function readCliVersion(bundle: string): Promise<string | undefined>;
 /**
  * Build the chat User-Agent for one region.
  *
@@ -152,7 +161,7 @@ declare function readCliVersion(bundle: string): Promise<string | undefined>;
  * `resolveChatIdentity` never produces such an identity, so the throw is a
  * last gate against future call-site mistakes, not an expected path.
  */
-declare function chatUserAgent(identity: ChatIdentity, region: WorkBuddyRegion): string;
+export declare function chatUserAgent(identity: ChatIdentity, region: WorkBuddyRegion): string;
 /** Constructor dependencies; every reader is injectable so tests never touch a real App or home. */
 interface ResolveChatIdentityOptions {
   /** Installed CN desktop-bundle reader; defaults to the macOS probe. */
@@ -180,16 +189,14 @@ interface ResolveChatIdentityOptions {
  * install tree); any injected option bypasses the cache entirely so tests
  * with different readers cannot observe each other's resolutions.
  */
-declare function resolveChatIdentity(region: WorkBuddyRegion, options?: ResolveChatIdentityOptions): Promise<ChatIdentity>;
+export declare function resolveChatIdentity(region: WorkBuddyRegion, options?: ResolveChatIdentityOptions): Promise<ChatIdentity>;
 /**
  * The region's compiled-in fallback identity: the desktop form with the
  * built-in version and no `CLI/…` segment. This is the single degraded
  * shape every failure path converges on — a thrown reader, an unreadable
  * bundle, or a missing cache all present this, never the legacy CLI UA.
  */
-declare function fallbackChatIdentity(region: WorkBuddyRegion): ChatIdentity;
-//#endregion
-//#region src/probe.d.ts
+export declare function fallbackChatIdentity(region: WorkBuddyRegion): ChatIdentity;
 /**
  * The canonical values a probe tests, in a fixed order.
  *
@@ -197,11 +204,11 @@ declare function fallbackChatIdentity(region: WorkBuddyRegion): ChatIdentity;
  * by policy — disabling thinking is a separate capability the upstream must
  * declare through `canDisableThinking`, never something probing may infer.
  */
-declare const PROBE_EFFORT_CANDIDATES: readonly WorkBuddyEffort[];
+export declare const PROBE_EFFORT_CANDIDATES: readonly WorkBuddyEffort[];
 /** Sentinel generator; injectable so tests get deterministic values. */
 type SentinelFactory = () => string;
 /** Default sentinel: unmistakably non-canonical, different on every call. */
-declare function randomSentinel(): string;
+export declare function randomSentinel(): string;
 /**
  * One response as the probe sees it, split into the only distinctions the
  * attribution rule needs.
@@ -243,7 +250,7 @@ type ProbeRegion = 'cn' | 'global';
  * endpoint's rejection vocabulary is read; it defaults to `cn`, which is also
  * the production default for the China app.
  */
-declare function probeModel(options: {
+export declare function probeModel(options: {
   send: ProbeSender;
   sentinel?: SentinelFactory;
   candidates?: readonly WorkBuddyEffort[];
@@ -260,8 +267,6 @@ declare function probeModel(options: {
   /** Injected by tests to advance a virtual clock; defaults to `Date.now`. */
   now?: () => number;
 }): Promise<ProbeOutcome>;
-//#endregion
-//#region src/upstream.d.ts
 /** WorkBuddy region selected by the credential's login domain. */
 type WorkBuddyRegion = 'cn' | 'global';
 /** Upstream failure classes the shim maps onto distinct HTTP answers. */
@@ -443,11 +448,11 @@ type WorkBuddyChatResult = {
  * @param credits - raw upstream credits string, e.g. `"x0.79 credits"`.
  * @returns the bare multiplier, or undefined when nothing displayable remains.
  */
-declare function normalizeCredits(credits: string | undefined): string | undefined;
+export declare function normalizeCredits(credits: string | undefined): string | undefined;
 /** Classify an upstream failure from its HTTP status and body excerpt. */
-declare function classifyUpstreamError(status: number, body: string): UpstreamErrorKind;
+export declare function classifyUpstreamError(status: number, body: string): UpstreamErrorKind;
 /** Region for a login domain; an empty domain means CN (matching upstream tooling). */
-declare function regionOf(domain: string): WorkBuddyRegion;
+export declare function regionOf(domain: string): WorkBuddyRegion;
 /**
  * Normalize an OpenAI chat-completions body for the WorkBuddy upstream:
  * force `stream: true` (the upstream rejects non-streaming), flatten
@@ -460,7 +465,7 @@ declare function regionOf(domain: string): WorkBuddyRegion;
  * invocation from an unapproved channel"). Rewriting to `system` is the
  * compatible spelling the upstream accepts.
  */
-declare function prepareChatBody(source: string): string;
+export declare function prepareChatBody(source: string): string;
 /** Provenance of one successful catalog fetch, surfaced by the status card. */
 interface WorkBuddyCatalogFetch {
   fetchedAtMs: number;
@@ -488,7 +493,7 @@ interface WorkBuddyUpstreamClientOptions {
  * catalog source, UA version, and probe differences, and keeping them on the
  * instance avoids passing a variant through every call signature.
  */
-declare class WorkBuddyUpstreamClient {
+export declare class WorkBuddyUpstreamClient {
   /**
    * Resolves the App-shaped UA version for international catalog requests.
    * Injectable so tests never read the real filesystem.
@@ -631,7 +636,7 @@ declare class WorkBuddyUpstreamClient {
  * @param promoBadges - badge tags by model id, read from the console document,
  * which is the only one that carries them.
  */
-declare function parseModelCatalog(data: Record<string, unknown>, international?: boolean, promoBadges?: ReadonlyMap<string, readonly string[]>): readonly WorkBuddyUpstreamModel[];
+export declare function parseModelCatalog(data: Record<string, unknown>, international?: boolean, promoBadges?: ReadonlyMap<string, readonly string[]>): readonly WorkBuddyUpstreamModel[];
 /**
  * One verified promotion entry.
  *
@@ -665,7 +670,7 @@ interface WorkBuddyPromotion {
  * promotion is layered onto a copy. A model with no live promotion is returned
  * as-is, so the common case allocates nothing.
  */
-declare function modelWithCurrentPromotion(model: WorkBuddyUpstreamModel, now?: number): WorkBuddyUpstreamModel;
+export declare function modelWithCurrentPromotion(model: WorkBuddyUpstreamModel, now?: number): WorkBuddyUpstreamModel;
 /**
  * Apply the international endpoint's extra chat requirement: the first message
  * must be a system prompt.
@@ -695,10 +700,8 @@ declare function modelWithCurrentPromotion(model: WorkBuddyUpstreamModel, now?: 
  * A body that is not a JSON object is returned unchanged, so this is safe to
  * run over an already-prepared-or-not body.
  */
-declare function prepareCnChatBody(source: string): string;
-declare function prepareInternationalChatBody(source: string): string;
-//#endregion
-//#region src/variants.d.ts
+export declare function prepareCnChatBody(source: string): string;
+export declare function prepareInternationalChatBody(source: string): string;
 /** One WorkBuddy product variant. */
 interface WorkBuddyVariant {
   /** Provider id registered with DSH, e.g. `workbuddy-ai`. */
@@ -782,15 +785,13 @@ interface WorkBuddyElectronProduct {
   };
 }
 /** CN WorkBuddy first: the existing provider keeps its id, paths, and copy. */
-declare const WORKBUDDY_VARIANTS: readonly WorkBuddyVariant[];
+export declare const WORKBUDDY_VARIANTS: readonly WorkBuddyVariant[];
 /** The CN variant; the plugin's long-standing default and compatibility anchor. */
-declare const CN_VARIANT: WorkBuddyVariant;
+export declare const CN_VARIANT: WorkBuddyVariant;
 /** The international variant. */
-declare const AI_VARIANT: WorkBuddyVariant;
+export declare const AI_VARIANT: WorkBuddyVariant;
 /** Look up a variant by provider id. */
-declare function variantFor(id: string): WorkBuddyVariant | undefined;
-//#endregion
-//#region src/desktop-credential-protection.d.ts
+export declare function variantFor(id: string): WorkBuddyVariant | undefined;
 /** The four states a desktop auth document can be read as. */
 type DesktopAuthFormat = 'absent' | 'plaintext' | 'encrypted' | 'unrecognized';
 /** The spawned helper. Separated from the provider so tests can stand it in. */
@@ -995,8 +996,6 @@ declare class WorkBuddyAtRestKeyProvider {
   private spawnPayload;
   private spawnAt;
 }
-//#endregion
-//#region src/auth.d.ts
 /** Normalized WorkBuddy credential, timestamps in epoch milliseconds. */
 interface WorkBuddyCredential {
   accessToken: string;
@@ -1050,11 +1049,11 @@ interface WorkBuddyStoreOptions {
   keyProvider?: Pick<WorkBuddyAtRestKeyProvider, 'protectorKeyFor' | 'helperPath'>;
 }
 /** Basename of the plugin-owned credential copy inside the Harness home. */
-declare const WORKBUDDY_AUTH_FILENAME = ".workbuddy-auth.json";
+export declare const WORKBUDDY_AUTH_FILENAME = ".workbuddy-auth.json";
 /** Env variable that overrides the desktop auth-file location. */
-declare const WORKBUDDY_AUTH_FILE_ENV = "WORKBUDDY_AUTH_FILE";
+export declare const WORKBUDDY_AUTH_FILE_ENV = "WORKBUDDY_AUTH_FILE";
 /** Plugin-owned copy path inside the Harness home. */
-declare function workbuddyOwnAuthPath(): string;
+export declare function workbuddyOwnAuthPath(): string;
 /**
  * Platform-default candidates for the WorkBuddy desktop app's auth file, in
  * probe order. Windows probes both AppData roots: current builds write under
@@ -1065,7 +1064,7 @@ declare function workbuddyOwnAuthPath(): string;
  * same Windows locations through its mounted Windows profile before the
  * native Linux locations.
  */
-declare function defaultDesktopAuthCandidates(): string[];
+export declare function defaultDesktopAuthCandidates(): string[];
 /**
  * The platform-default candidates for one variant, in probe order.
  *
@@ -1073,15 +1072,15 @@ declare function defaultDesktopAuthCandidates(): string[];
  * and differ only in the file's basename, so the per-platform ordering above
  * is reused verbatim and just the filename is swapped.
  */
-declare function desktopAuthCandidatesFor(variant: WorkBuddyVariant): string[];
+export declare function desktopAuthCandidatesFor(variant: WorkBuddyVariant): string[];
 /** First platform-default candidate; see {@link defaultDesktopAuthCandidates}. */
-declare function defaultDesktopAuthPath(variant?: WorkBuddyVariant): string | undefined;
+export declare function defaultDesktopAuthPath(variant?: WorkBuddyVariant): string | undefined;
 /**
  * Parse a WorkBuddy auth document in either on-disk shape: the plugin OAuth
  * nested form `{"auth":{...},"account":{...}}` and the flat panel form.
  * Returns undefined when the document carries no access token.
  */
-declare function parseWorkBuddyAuth(text: string): WorkBuddyCredential | undefined;
+export declare function parseWorkBuddyAuth(text: string): WorkBuddyCredential | undefined;
 /**
  * Read-only credential store with demand-driven refresh.
  *
@@ -1091,7 +1090,7 @@ declare function parseWorkBuddyAuth(text: string): WorkBuddyCredential | undefin
  * returns a not-yet-expired token so an unreachable refresh endpoint does
  * not take down a working session.
  */
-declare class WorkBuddyCredentialStore {
+export declare class WorkBuddyCredentialStore {
   private readonly variant;
   private readonly refresh;
   private readonly refreshMarginMs;
@@ -1168,8 +1167,6 @@ declare class WorkBuddyCredentialStore {
   /** Whether any desktop-file candidate exists as a regular file; diagnostics only. */
   desktopFilePresent(): Promise<boolean>;
 }
-//#endregion
-//#region src/catalog.d.ts
 /** One model entry the adapter exposes. */
 type WorkBuddyModelInfo = WorkBuddyUpstreamModel;
 /**
@@ -1202,7 +1199,7 @@ type WorkBuddyModelInfo = WorkBuddyUpstreamModel;
  * `fetchPromoBadges` in upstream.ts); until then the rows simply ship
  * without them.
  */
-declare const FALLBACK_WORKBUDDY_MODELS: readonly WorkBuddyModelInfo[];
+export declare const FALLBACK_WORKBUDDY_MODELS: readonly WorkBuddyModelInfo[];
 /**
  * Static CLI models for the international endpoint, captured 2026-09-11 from
  * the App-form `/v3/config` document (the 20 ids of its `cli` agent, in order).
@@ -1215,7 +1212,7 @@ declare const FALLBACK_WORKBUDDY_MODELS: readonly WorkBuddyModelInfo[];
  * `validUntil`), so hard-coding a "Free now" label would keep claiming a
  * discount the upstream may have already ended.
  */
-declare const FALLBACK_WORKBUDDY_AI_MODELS: readonly WorkBuddyModelInfo[];
+export declare const FALLBACK_WORKBUDDY_AI_MODELS: readonly WorkBuddyModelInfo[];
 /**
  * Mutable catalog shared by the shim's `/v1/models` and the adapter.
  *
@@ -1229,7 +1226,7 @@ declare const FALLBACK_WORKBUDDY_AI_MODELS: readonly WorkBuddyModelInfo[];
  * The flag defaults to visible so a directly-constructed catalog behaves as it
  * always has; the plugin runtime applies the credential gate.
  */
-declare class WorkBuddyCatalog {
+export declare class WorkBuddyCatalog {
   private models;
   private visible;
   private useMaximumContextWindow;
@@ -1253,10 +1250,8 @@ declare class WorkBuddyCatalog {
   /** Models to fall back to when the upstream fetch fails; ignores visibility. */
   fallback(): readonly WorkBuddyModelInfo[];
 }
-//#endregion
-//#region src/probe-store.d.ts
 /** Basename of the probe record inside the Harness home. */
-declare const WORKBUDDY_PROBE_FILENAME = ".workbuddy-probe.json";
+export declare const WORKBUDDY_PROBE_FILENAME = ".workbuddy-probe.json";
 /**
  * Whether the model's effort parameter is actually validated.
  *
@@ -1300,7 +1295,7 @@ interface WorkBuddyProbeRecord {
  * never the provider — so a single shared file would let one variant's
  * observation answer for the other. The paths differ; the format does not.
  */
-declare function workbuddyProbePath(filename?: string): string;
+export declare function workbuddyProbePath(filename?: string): string;
 /**
  * Fingerprint the catalog fields a probe depends on.
  *
@@ -1309,7 +1304,7 @@ declare function workbuddyProbePath(filename?: string): string;
  * deliberately includes the whole reasoning object so any change to the
  * declared shape re-probes.
  */
-declare function fingerprintModel(info: WorkBuddyModelInfo): string;
+export declare function fingerprintModel(info: WorkBuddyModelInfo): string;
 /** Options for {@link WorkBuddyProbeStore}. */
 interface WorkBuddyProbeStoreOptions {
   /** Explicit state-file path, overriding the `$DSH_HOME` default. */
@@ -1326,7 +1321,7 @@ interface WorkBuddyProbeStoreOptions {
  * account that produced each observation, and never trusted across a
  * fingerprint change or past the TTL.
  */
-declare class WorkBuddyProbeStore {
+export declare class WorkBuddyProbeStore {
   private readonly path;
   private readonly ttlMs;
   private readonly pluginVersion;
@@ -1365,8 +1360,6 @@ declare class WorkBuddyProbeStore {
    */
   private persist;
 }
-//#endregion
-//#region src/shim.d.ts
 /** Minimal logger surface the plugin context already provides. */
 interface ShimLogger {
   warn(...args: unknown[]): void;
@@ -1404,13 +1397,11 @@ interface WorkBuddyShimOptions {
  * Start the loopback endpoint. Requests carry any bearer; the loopback bind
  * is the boundary, and the upstream credential comes from the store alone.
  */
-declare function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShim;
-//#endregion
-//#region src/adapter.d.ts
+export declare function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShim;
 /** Provider route this bundle owns. */
-declare const WORKBUDDY_PROVIDER = "workbuddy";
+export declare const WORKBUDDY_PROVIDER = "workbuddy";
 /** Provider idle ceiling while one stream read is outstanding. */
-declare const WORKBUDDY_STREAM_IDLE_TIMEOUT_MS = 300000;
+export declare const WORKBUDDY_STREAM_IDLE_TIMEOUT_MS = 300000;
 /** Constructor dependencies. */
 interface WorkBuddyAdapterOptions {
   providerId?: string;
@@ -1472,11 +1463,9 @@ interface WorkBuddyAdapter {
  * path and every newly required field must be adopted here explicitly —
  * `modelErrors` since 0.1.5-alpha.2 (#12).
  */
-declare function createWorkBuddyAdapter(options: WorkBuddyAdapterOptions): WorkBuddyAdapter;
-//#endregion
-//#region src/catalog-store.d.ts
+export declare function createWorkBuddyAdapter(options: WorkBuddyAdapterOptions): WorkBuddyAdapter;
 /** Basename of the CN variant's saved catalog inside the Harness home. */
-declare const WORKBUDDY_CATALOG_FILENAME = ".workbuddy-catalog.json";
+export declare const WORKBUDDY_CATALOG_FILENAME = ".workbuddy-catalog.json";
 /** One saved catalog: the account it belonged to, and the models it listed. */
 interface SavedCatalog {
   /** `uid:enterpriseId` the catalog was fetched for. */
@@ -1490,7 +1479,7 @@ interface SavedCatalog {
   appVersion?: string;
 }
 /** Plugin-owned saved-catalog path inside the Harness home. */
-declare function workbuddyCatalogPath(filename?: string): string;
+export declare function workbuddyCatalogPath(filename?: string): string;
 /** Options for {@link WorkBuddyCatalogStore}. */
 interface WorkBuddyCatalogStoreOptions {
   /** Explicit state-file path, overriding the `$DSH_HOME` default. */
@@ -1503,7 +1492,7 @@ interface WorkBuddyCatalogStoreOptions {
  * is an optimization for the offline and first-seconds cases, and a corrupt one
  * must never be able to stop the plugin from serving models.
  */
-declare class WorkBuddyCatalogStore {
+export declare class WorkBuddyCatalogStore {
   private readonly path;
   private entries;
   constructor(options?: WorkBuddyCatalogStoreOptions | string);
@@ -1523,8 +1512,6 @@ declare class WorkBuddyCatalogStore {
   delete(account: string): void;
   private persist;
 }
-//#endregion
-//#region src/visibility-store.d.ts
 /**
  * Per-account model-visibility preferences: which models the signed-in account
  * has hidden from the DSH model picker (issue #36).
@@ -1553,9 +1540,9 @@ declare class WorkBuddyCatalogStore {
  * @module dsh-workbuddy-connect/visibility-store
  */
 /** Basename of the CN variant's visibility file inside the Harness home. */
-declare const WORKBUDDY_VISIBILITY_FILENAME = ".workbuddy-model-visibility.json";
+export declare const WORKBUDDY_VISIBILITY_FILENAME = ".workbuddy-model-visibility.json";
 /** Plugin-owned visibility-file path inside the Harness home. */
-declare function workbuddyVisibilityPath(filename?: string): string;
+export declare function workbuddyVisibilityPath(filename?: string): string;
 /** Options for {@link WorkBuddyVisibilityStore}. */
 interface WorkBuddyVisibilityStoreOptions {
   /** Explicit state-file path, overriding the `$DSH_HOME` default. */
@@ -1569,7 +1556,7 @@ interface WorkBuddyVisibilityStoreOptions {
  * did not persist. Reads stay forgiving — a corrupt or unreadable file is
  * "nothing hidden", which only ever shows models the account can still pick.
  */
-declare class WorkBuddyVisibilityStore {
+export declare class WorkBuddyVisibilityStore {
   private readonly path;
   private accounts;
   constructor(options?: WorkBuddyVisibilityStoreOptions | string);
@@ -1590,8 +1577,6 @@ declare class WorkBuddyVisibilityStore {
   setVisible(account: string, model: string, visible: boolean): void;
   private persist;
 }
-//#endregion
-//#region src/probe-service.d.ts
 /** What the caller learns about a completed probe. */
 type WorkBuddyProbeStatus = {
   state: 'ok';
@@ -1635,7 +1620,7 @@ interface WorkBuddyProbeServiceOptions {
  * Serial probe runner. One instance is shared by the manual API and any
  * future automatic trigger, so the two can never overlap.
  */
-declare class WorkBuddyProbeService {
+export declare class WorkBuddyProbeService {
   private readonly options;
   private queue;
   private readonly pending;
@@ -1660,8 +1645,6 @@ declare class WorkBuddyProbeService {
    */
   probe(modelId: string, manualConsent?: boolean): Promise<WorkBuddyProbeStatus>;
 }
-//#endregion
-//#region src/host-heartbeat.d.ts
 /**
  * Host-side heartbeat: a small JSON file written under `$DSH_HOME` once the
  * `workbuddy` provider is registered. The status CLI reads it to report
@@ -1675,7 +1658,7 @@ declare class WorkBuddyProbeService {
  * @module dsh-workbuddy-connect-community/host-heartbeat
  */
 /** Basename of the host heartbeat file inside the Harness home. */
-declare const WORKBUDDY_HOST_HEARTBEAT_FILENAME = ".workbuddy-community-host-heartbeat.json";
+export declare const WORKBUDDY_HOST_HEARTBEAT_FILENAME = ".workbuddy-community-host-heartbeat.json";
 /** Current on-disk heartbeat format; readers reject others. */
 declare const HEARTBEAT_FORMAT_VERSION = 1;
 /** On-disk shape of the heartbeat. */
@@ -1689,11 +1672,11 @@ interface WorkBuddyHostHeartbeat {
   pid: number;
 }
 /** Absolute path of the host heartbeat file. */
-declare function workbuddyHostHeartbeatPath(): string;
+export declare function workbuddyHostHeartbeatPath(): string;
 /** Remove the heartbeat on plugin disposal so a stale file does not linger. */
-declare function clearHostHeartbeat(): Promise<void>;
+export declare function clearHostHeartbeat(): Promise<void>;
 /** Read and validate the heartbeat; returns `undefined` when absent or malformed. */
-declare function readHostHeartbeat(): Promise<WorkBuddyHostHeartbeat | undefined>;
+export declare function readHostHeartbeat(): Promise<WorkBuddyHostHeartbeat | undefined>;
 /**
  * Absolute start time (epoch ms) of the process holding `pid`, or `undefined`
  * when it cannot be determined (no such PID, platform lacks a readable source).
@@ -1708,7 +1691,7 @@ declare function readHostHeartbeat(): Promise<WorkBuddyHostHeartbeat | undefined
  * Failures return `undefined` so callers can fall back to plain PID liveness
  * rather than mis-report a running host as dead.
  */
-declare function processStartTimeMs(pid: number): number | undefined;
+export declare function processStartTimeMs(pid: number): number | undefined;
 /**
  * Whether the heartbeat's PID is still alive *and* still the same process that
  * registered it. A stale heartbeat (host crashed without clearing the file)
@@ -1725,13 +1708,11 @@ declare function processStartTimeMs(pid: number): number | undefined;
  * produce a false "Host running". When the process start time cannot be read
  * (e.g. unsupported platform) the check degrades to plain PID liveness.
  */
-declare function isHeartbeatProcessAlive(heartbeat: WorkBuddyHostHeartbeat): boolean;
-//#endregion
-//#region src/index.d.ts
+export declare function isHeartbeatProcessAlive(heartbeat: WorkBuddyHostHeartbeat): boolean;
 /** Stable Cordis plugin name. */
-declare const name = "llm-workbuddy";
+export declare const name = "llm-workbuddy";
 /** The model registry required before the provider can register. */
-declare const inject: string[];
+export declare const inject: string[];
 /**
  * Settings namespace owning the CN card's section.
  *
@@ -1744,7 +1725,7 @@ declare const inject: string[];
  * into this package (upstream DSH plugins, `dsh-llm-pi-ai` included, pass
  * their namespaces as plain string literals).
  */
-declare const WORKBUDDY_SETTINGS_NS: SettingsNamespace;
+export declare const WORKBUDDY_SETTINGS_NS: SettingsNamespace;
 /**
  * Settings namespace owning the international section.
  *
@@ -1758,9 +1739,9 @@ declare const WORKBUDDY_SETTINGS_NS: SettingsNamespace;
  * bundle's single `plugins.bundle.config` entry, keyed by package name), which
  * costs nothing: a section that names no card renders no duplicate.
  */
-declare const WORKBUDDY_AI_SETTINGS_NS: SettingsNamespace;
+export declare const WORKBUDDY_AI_SETTINGS_NS: SettingsNamespace;
 /** Plugin configuration. */
-interface Config {
+export interface Config {
   /** Explicit WorkBuddy (CN) desktop auth-file path, overriding env and platform defaults. */
   authFile?: string;
   /** Explicit WorkBuddy AI (international) desktop auth-file path, overriding env and platform defaults. */
@@ -1789,7 +1770,7 @@ interface Config {
    */
   retryPolicy?: RetryPolicyConfig;
 }
-declare const Config: z<Config>;
+export declare const Config: z<Config>;
 /**
  * The account key model-visibility preferences are stored under: the stable
  * identity, but only when it carries a uid.
@@ -1801,7 +1782,7 @@ declare const Config: z<Config>;
  * route explains the refusal — which is the only honest degradation: it never
  * applies one account's hidden list to another.
  */
-declare function visibilityAccountOf(credential: Pick<WorkBuddyCredential, 'uid' | 'enterpriseId'>): string | undefined;
+export declare function visibilityAccountOf(credential: Pick<WorkBuddyCredential, 'uid' | 'enterpriseId'>): string | undefined;
 /**
  * Start both variants: their loopback endpoints, the `workbuddy` and
  * `workbuddy-ai` providers, their configuration cards, and their
@@ -1812,6 +1793,5 @@ declare function visibilityAccountOf(credential: Pick<WorkBuddyCredential, 'uid'
  * out groups with no models), which keeps a sign-in that happens after startup
  * working without re-registering the provider.
  */
-declare function apply(ctx: Context, config: Config): void;
-//#endregion
-export { AI_VARIANT, type AppVersionInfo, CN_APP_VERSION_FILENAME, CN_VARIANT, type ChatIdentity, Config, FALLBACK_CN_APP_VERSION, FALLBACK_WORKBUDDY_AI_MODELS, FALLBACK_WORKBUDDY_MODELS, PROBE_EFFORT_CANDIDATES, type ProbeAttempt, type ProbeOutcome, type ProbeSender, type ResolveChatIdentityOptions, type UpstreamErrorKind, WORKBUDDY_AI_SETTINGS_NS, WORKBUDDY_APP_VERSION_FILENAME, WORKBUDDY_AUTH_FILENAME, WORKBUDDY_AUTH_FILE_ENV, WORKBUDDY_CATALOG_FILENAME, WORKBUDDY_HOST_HEARTBEAT_FILENAME, WORKBUDDY_PROBE_FILENAME, WORKBUDDY_PROVIDER, WORKBUDDY_SETTINGS_NS, WORKBUDDY_STREAM_IDLE_TIMEOUT_MS, WORKBUDDY_VARIANTS, WORKBUDDY_VISIBILITY_FILENAME, type WorkBuddyAdapter, type WorkBuddyAppVersionSource, type WorkBuddyAuthStatus, WorkBuddyCatalog, type WorkBuddyCatalogFetch, WorkBuddyCatalogStore, type WorkBuddyChatResult, type WorkBuddyCredential, WorkBuddyCredentialStore, type WorkBuddyCredits, type WorkBuddyEffort, type WorkBuddyHostHeartbeat, type WorkBuddyModelBilling, type WorkBuddyModelInfo, type WorkBuddyModelReasoning, type WorkBuddyProbeRecord, WorkBuddyProbeService, type WorkBuddyProbeStatus, WorkBuddyProbeStore, type WorkBuddyProbeValidation, type WorkBuddyPromotion, type WorkBuddyRefreshOutcome, type WorkBuddyShim, WorkBuddyUpstreamClient, type WorkBuddyUpstreamModel, type WorkBuddyVariant, WorkBuddyVisibilityStore, appUserAgent, apply, chatUserAgent, classifyUpstreamError, clearHostHeartbeat, createWorkBuddyAdapter, createWorkBuddyShim, defaultDesktopAuthCandidates, defaultDesktopAuthPath, desktopAuthCandidatesFor, fallbackChatIdentity, fingerprintModel, inject, installedAppVersion, isHeartbeatProcessAlive, modelWithCurrentPromotion, name, normalizeCredits, parseModelCatalog, parseWorkBuddyAuth, prepareChatBody, prepareCnChatBody, prepareInternationalChatBody, probeModel, processStartTimeMs, randomSentinel, readBundleVersion, readCliVersion, readHostHeartbeat, regionOf, resolveAppVersion, resolveChatIdentity, validAppVersion, validCliVersion, variantFor, visibilityAccountOf, workbuddyCatalogPath, workbuddyHostHeartbeatPath, workbuddyOwnAuthPath, workbuddyProbePath, workbuddyVisibilityPath };
+export declare function apply(ctx: Context, config: Config): void;
+export type { AppVersionInfo, ChatIdentity, ProbeAttempt, ProbeOutcome, ProbeSender, ResolveChatIdentityOptions, UpstreamErrorKind, WorkBuddyAdapter, WorkBuddyAppVersionSource, WorkBuddyAuthStatus, WorkBuddyCatalogFetch, WorkBuddyChatResult, WorkBuddyCredential, WorkBuddyCredits, WorkBuddyEffort, WorkBuddyHostHeartbeat, WorkBuddyModelBilling, WorkBuddyModelInfo, WorkBuddyModelReasoning, WorkBuddyProbeRecord, WorkBuddyProbeStatus, WorkBuddyProbeValidation, WorkBuddyPromotion, WorkBuddyRefreshOutcome, WorkBuddyShim, WorkBuddyUpstreamModel, WorkBuddyVariant };

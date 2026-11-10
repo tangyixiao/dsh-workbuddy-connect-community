@@ -4,12 +4,19 @@ import type { UserConfig } from 'tsdown'
 const PLUGIN_ID = 'dsh-workbuddy-connect-community'
 
 /** Read the npm version once so the build injects it into src/version.ts. */
-const PACKAGE_VERSION = JSON.parse(
+const PACKAGE_MANIFEST = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
-).version as string
+)
+const PACKAGE_VERSION = PACKAGE_MANIFEST.version as string
+
+const PI_AI_VERSION = PACKAGE_MANIFEST.dependencies['@earendil-works/pi-ai'] as string
+if (!/^\d+\.\d+\.\d+$/u.test(PI_AI_VERSION)) throw new Error('pi-ai must have an exact runtime version')
 
 /** Build-time define map; `src/version.ts` reads `__DSH_WORKBUDDY_VERSION__`. */
-const VERSION_DEFINE = { __DSH_WORKBUDDY_VERSION__: JSON.stringify(PACKAGE_VERSION) }
+const VERSION_DEFINE = {
+  __DSH_WORKBUDDY_VERSION__: JSON.stringify(PACKAGE_VERSION),
+  __DSH_WORKBUDDY_PI_AI_VERSION__: JSON.stringify(PI_AI_VERSION),
+}
 
 /**
  * Modules the host loader provides, kept out of the browser bundle. The
