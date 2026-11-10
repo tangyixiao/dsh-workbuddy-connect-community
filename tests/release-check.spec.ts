@@ -76,3 +76,10 @@ it('rejects an ignored runtime file that exists locally but would not ship', () 
   expect(result.status).toBe(1)
   expect(result.stderr).toContain('pack coverage')
 }, 20_000)
+
+it('rejects a banner that exists locally but is excluded from the published package', () => {
+  writeFileSync(join(root, 'docs/.npmignore'), 'assets/banner-en.svg\n')
+  const result = check()
+  expect(result.status).toBe(1)
+  expect(result.stderr).toContain('pack coverage')
+}, 20_000)
