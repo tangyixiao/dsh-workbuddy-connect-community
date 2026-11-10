@@ -25,7 +25,7 @@ Historical upstream screenshot of the model menu; current models, prices and pla
 Desktop: install the release `.tgz` through Extensions → Plugin Management → Add Plugin. For a Web profile you explicitly control:
 
 ```sh
-dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.16
+dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.17
 ```
 
 Sign in to the matching desktop product. Disable the original `dsh-workbuddy-connect` before enabling this community package; they share provider IDs. Use `dsh-workbuddy-connect-community doctor --share` for a redacted diagnostic.
@@ -34,7 +34,7 @@ Sign in to the matching desktop product. Disable the original `dsh-workbuddy-con
 
 | Item | Current source of truth |
 | --- | --- |
-| Source version | `0.1.16` · 以 [package.json](package.json) 为准 |
+| Source version | `0.1.17` · 以 [package.json](package.json) 为准 |
 | Distribution | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
 | DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1` |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |

@@ -2,7 +2,7 @@
   "name": "dsh-workbuddy-connect-community",
   "displayName": "DSH WorkBuddy Connect Community",
   "description": "Community-maintained WorkBuddy / WorkBuddy AI provider for DeepSeek Harness.",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "author": "Tang Yixiao (maintained fork of Corrine Hu's dsh-workbuddy-connect)",
   "keywords": [
     "dsh-plugin",
@@ -82,7 +82,8 @@
     }
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "1.5.0"
+    "@earendil-works/pi-ai": "1.5.0",
+    "zod": "^4.6.6"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
@@ -141,7 +142,7 @@
     "semver": "^7.8.5",
     "tsdown": "^0.23.7",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.12"
   },
   "icon": "./assets/logo.webp"
 }
