@@ -8,7 +8,8 @@ const root = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.u
 const id = 'dsh-workbuddy-connect-community'
 const hostRange = '0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5 || 0.2.2-rc.1'
 const hostPeers = ['attachment', 'client-connection', 'home-paths', 'host-webserver', 'llm', 'llm-pi-ai', 'settings']
-const files = ['lib', 'cordis.patch.yml', 'README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'assets/logo.webp', 'assets/NOTICE.md', 'assets/LICENSE-WHALE-ARTWORK']
+const files = ['lib', 'cordis.patch.yml', 'README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'assets/logo.webp', 'assets/NOTICE.md', 'assets/LICENSE-WHALE-ARTWORK', 'docs', 'CONTRIBUTING.md', 'SUPPORT.md', 'SECURITY.md', 'AGENTS.md']
+const directories = new Set(['lib', 'docs'])
 const runtime = ['lib/index.js', 'lib/index.d.ts', 'lib/bin.js', 'lib/bin.d.ts', 'lib/client.js']
 const read = path => readFileSync(join(root, path), 'utf8')
 const assert = (condition, message) => { if (!condition) throw new Error(message) }
@@ -16,7 +17,7 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 try {
   const pkg = JSON.parse(read('package.json'))
   assert(pkg.name === id, 'package identity must be Community')
-  assert(/^\d+\.\d+\.\d+$/.test(pkg.version), 'package version must be a stable release')
+  assert(/^\d+\.\d+\.\d+(?:-rc5\.\d+)?$/.test(pkg.version), 'package version must be stable or an explicit rc5 preview')
   assert(pkg.engines?.dsh === hostRange, 'host range changed; qualify compatibility separately')
   for (const peer of hostPeers) {
     assert(pkg.peerDependencies?.[`@deepseek-ai/dsh-${peer}`] === hostRange, `DSH peer range missing or changed: ${peer}`)
@@ -36,9 +37,11 @@ try {
   assert(existsSync(join(root, 'assets/logo.webp')) && statSync(join(root, 'assets/logo.webp')).size <= 256 * 1024, 'logo missing or exceeds the host size limit')
   assert(/^\s+name: dsh-workbuddy-connect-community\s*$/m.test(read('cordis.patch.yml')), 'patch identity must register Community')
   assert(/^\s+- id: llm-workbuddy\s*$/m.test(read('cordis.patch.yml')), 'patch registration must use llm-workbuddy')
-  for (const path of [...runtime, ...files.filter(path => path !== 'lib')]) {
+  for (const path of [...runtime, ...files.filter(path => !directories.has(path))]) {
     assert(existsSync(join(root, path)) && statSync(join(root, path)).isFile(), `missing runtime file or release document: ${path}`)
   }
+  for (const path of directories) assert(existsSync(join(root, path)) && statSync(join(root, path)).isDirectory(), `missing release directory: ${path}`)
+  for (const path of ['docs/assets/banner-en.svg', 'docs/assets/banner-zh-CN.svg']) assert(existsSync(join(root, path)), `missing published banner: ${path}`)
   const client = read('lib/client.js')
   assert(/window\.__ModuleLoader__\.load\(\{\s*id:\s*"dsh-workbuddy-connect-community"/.test(client), 'client bundle identity changed')
   assert(/\bname\s*=\s*"dsh-workbuddy-connect-community-client"/.test(client)
@@ -69,7 +72,12 @@ try {
   })
   assert(packed.status === 0, `npm pack inspection failed: ${packed.stderr || packed.error || packed.status}`)
   const paths = new Set(JSON.parse(packed.stdout)[0].files.map(file => file.path))
-  const expected = ['package.json', ...built.filter(path => path !== 'lib/.npmignore'), ...files.filter(path => path !== 'lib')]
+  const collectDocuments = directory => readdirSync(join(root, directory), { withFileTypes: true }).flatMap(entry => {
+    const relative = `${directory}/${entry.name}`
+    assert(!entry.isSymbolicLink(), `release documents must not follow symlinks: ${relative}`)
+    return entry.isDirectory() ? collectDocuments(relative) : entry.name === '.npmignore' ? [] : [relative]
+  })
+  const expected = ['package.json', ...built.filter(path => path !== 'lib/.npmignore'), ...collectDocuments('docs'), ...files.filter(path => !directories.has(path))]
   assert(expected.every(path => paths.has(path)), `pack coverage missing: ${expected.filter(path => !paths.has(path)).join(', ')}`)
   assert([...paths].every(path => expected.includes(path)), `pack contains unexpected files: ${[...paths].filter(path => !expected.includes(path)).join(', ')}`)
   console.log(`Release checks passed: ${id}@${pkg.version}, ${paths.size} packed files`)
