@@ -25,7 +25,7 @@
 Desktop：从发行页下载 `.tgz`，在“扩展 → 插件管理 → 添加插件”中安装。命令行示例用于你明确控制的 Web profile：
 
 ```sh
-dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.16
+dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.16-rc5.3
 ```
 
 先登录对应桌面客户端。安装社区包后，先停用原 `dsh-workbuddy-connect` 再启用社区包；两者使用相同 provider ID。CLI 诊断用 `dsh-workbuddy-connect-community doctor --share`。
@@ -34,7 +34,7 @@ dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.16
 
 | 项目 | 当前依据 |
 | --- | --- |
-| 源码版本 | `0.1.16` · 以 [package.json](package.json) 为准 |
+| 源码版本 | `0.1.16-rc5.3` · 以 [package.json](package.json) 为准 |
 | 分发方式 | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
 | DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1` |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |
