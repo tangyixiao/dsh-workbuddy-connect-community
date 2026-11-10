@@ -8,7 +8,7 @@ const root = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.u
 const id = 'dsh-workbuddy-connect-community'
 const hostRange = '0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5 || 0.2.2-rc.1'
 const hostPeers = ['attachment', 'client-connection', 'home-paths', 'host-webserver', 'llm', 'llm-pi-ai', 'settings']
-const files = ['lib', 'cordis.patch.yml', 'README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY_NOTICES.txt']
+const files = ['lib', 'cordis.patch.yml', 'README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'assets/logo.webp', 'assets/NOTICE.md', 'assets/LICENSE-WHALE-ARTWORK']
 const runtime = ['lib/index.js', 'lib/index.d.ts', 'lib/bin.js', 'lib/bin.d.ts', 'lib/client.js']
 const read = path => readFileSync(join(root, path), 'utf8')
 const assert = (condition, message) => { if (!condition) throw new Error(message) }
@@ -32,6 +32,8 @@ try {
   assert(pkg.dsh?.client?.platform === 'web', 'client platform changed')
   assert(pkg.publishConfig?.registry === 'https://registry.npmjs.org', 'publish registry must be the official npm registry')
   assert(Array.isArray(pkg.files) && JSON.stringify([...pkg.files].sort()) === JSON.stringify([...files].sort()), 'files whitelist changed')
+  assert(pkg.icon === './assets/logo.webp' && pkg.exports?.['./icon'] === './assets/logo.webp', 'logo entry changed or missing')
+  assert(existsSync(join(root, 'assets/logo.webp')) && statSync(join(root, 'assets/logo.webp')).size <= 256 * 1024, 'logo missing or exceeds the host size limit')
   assert(/^\s+name: dsh-workbuddy-connect-community\s*$/m.test(read('cordis.patch.yml')), 'patch identity must register Community')
   assert(/^\s+- id: llm-workbuddy\s*$/m.test(read('cordis.patch.yml')), 'patch registration must use llm-workbuddy')
   for (const path of [...runtime, ...files.filter(path => path !== 'lib')]) {
