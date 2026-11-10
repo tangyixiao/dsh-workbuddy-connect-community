@@ -127,13 +127,13 @@ describe('peer manifest pins the verified DSH cores', () => {
     // pi-ai at the profile root wins bare-specifier resolution and the plugin
     // loads the wrong generation. A regular dependency installs beside the
     // plugin and resolves first, whatever the profile root holds.
-    expect(pkg.dependencies?.['@earendil-works/pi-ai']).toBe('1.3.0')
+    expect(pkg.dependencies?.['@earendil-works/pi-ai']).toBe('1.5.0')
     expect(
       pkg.peerDependencies['@earendil-works/pi-ai'],
       'pi-ai must not also be a peer: a peer declaration is what allowed the hoisted copy to win',
     ).toBeUndefined()
     // The dev entry keeps local builds and tests on the same generation, and
     // stays exact so no caret can widen the supported set by itself.
-    expect(pkg.devDependencies['@earendil-works/pi-ai']).toBe('1.3.0')
+    expect(pkg.devDependencies['@earendil-works/pi-ai']).toBe('1.5.0')
   })
 })

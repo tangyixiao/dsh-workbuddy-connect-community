@@ -69,9 +69,21 @@ function materialiseSecondCopy(): { root: string; dir: string } {
   cpSync(source, dir, { recursive: true })
   const deps = join(dir, 'node_modules')
   mkdirSync(deps, { recursive: true })
-  for (const name of ['zod', 'typebox', 'partial-json', 'openai', 'ws']) {
+  const manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')) as {
+    dependencies?: Record<string, string>
+    peerDependencies?: Record<string, string>
+  }
+  // Keep the second copy's actual dependency graph, including scoped helpers
+  // added by pi-ai releases, while keeping pi-ai itself physically distinct.
+  const names = new Set([
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.peerDependencies ?? {}),
+    'zod', 'typebox', 'ws',
+  ])
+  for (const name of names) {
     const from = join(store, name)
     if (!existsSync(from)) continue
+    mkdirSync(dirname(join(deps, name)), { recursive: true })
     if (process.platform === 'win32') {
       // Windows `dir` symlinks need Developer Mode or elevation and otherwise
       // fail with EPERM, which would turn this test into a false failure on

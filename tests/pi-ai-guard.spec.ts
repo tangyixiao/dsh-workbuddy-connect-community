@@ -7,6 +7,7 @@
  * that a correct install stays quiet.
  */
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import {
   piAiVersionWarning,
   REQUIRED_PI_AI_VERSION,
@@ -14,6 +15,22 @@ import {
 } from '../src/pi-ai-guard.ts'
 
 describe('pi-ai resolution guard', () => {
+  it('uses the exact runtime pin that the manifest installs and the integration suite exercises', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      dependencies: Record<string, string>
+      devDependencies: Record<string, string>
+    }
+    const installedPin = manifest.dependencies['@earendil-works/pi-ai']
+    expect(installedPin).toMatch(/^\d+\.\d+\.\d+$/u)
+    expect(manifest.devDependencies['@earendil-works/pi-ai']).toBe(installedPin)
+    expect(REQUIRED_PI_AI_VERSION).toBe(installedPin)
+    expect(piAiVersionWarning(installedPin)).toBeUndefined()
+  })
+
+  it('still warns when an older plugin generation is resolved after an upgrade', () => {
+    expect(piAiVersionWarning('1.3.0')).toContain(REQUIRED_PI_AI_VERSION)
+  })
+
   it('stays silent for the version this plugin is built for', () => {
     expect(piAiVersionWarning(REQUIRED_PI_AI_VERSION)).toBeUndefined()
   })
@@ -43,10 +60,10 @@ describe('pi-ai resolution guard', () => {
   })
 
   it('reports a newer copy too', () => {
-    // The other direction: a third-party updater moving pi-ai to 1.x (#86).
-    const warning = piAiVersionWarning('1.0.4')
+    // A third-party updater can resolve an untested newer copy too (#86).
+    const warning = piAiVersionWarning('1.6.0')
     expect(warning).toBeDefined()
-    expect(warning).toContain('1.0.4')
+    expect(warning).toContain('1.6.0')
     expect(warning).toContain(REQUIRED_PI_AI_VERSION)
   })
 

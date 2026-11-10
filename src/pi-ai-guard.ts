@@ -1,6 +1,6 @@
 /**
- * Confirm the pi-ai copy this plugin actually loaded is the generation the DSH
- * 0.2.1-rc.1 host was built against.
+ * Confirm the pi-ai copy this plugin actually loaded is the exact generation
+ * pinned in the build manifest and exercised against the supported DSH hosts.
  *
  * #92's failure mode: a pnpm profile with `nodeLinker: hoisted` and
  * `autoInstallPeers: false` installs no peer for us, so a co-installed
@@ -23,8 +23,10 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/** The pi-ai generation this plugin is built and tested against. */
-export const REQUIRED_PI_AI_VERSION = '1.3.0'
+declare const __DSH_WORKBUDDY_PI_AI_VERSION__: string
+
+/** Exact manifest pin injected by the build and exercised by the integration suite. */
+export const REQUIRED_PI_AI_VERSION = __DSH_WORKBUDDY_PI_AI_VERSION__
 
 /**
  * Read the version of the pi-ai copy Node resolves for *this* module.

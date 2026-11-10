@@ -1152,7 +1152,7 @@ describe('WorkBuddy Host settings integration', () => {
     // Delay publication independently of the plugin fiber becoming active.
     let availableAt = Date.now() + delay
     const describeStates: Array<number | undefined> = []
-    let pluginFiber: { state?: number; config: Record<string, unknown>; effectiveConfig: Record<string, unknown>; entry?: { id: string; options: { id: string } } } | undefined
+    let pluginFiber: { state?: number; rawConfig: unknown; readonly effectiveConfig: Record<string, unknown>; entry?: { id: string; options: { id: string } } } | undefined
     let saved: Record<string, unknown> = {}
     let failWrite = false
     let writes = 0
@@ -1175,9 +1175,10 @@ describe('WorkBuddy Host settings integration', () => {
         await writeFile(join(root!, 'profile-patch.yaml'), JSON.stringify(next))
         saved = next
         writes += 1
-        // Model the editor applying resolved Config after a successful save.
-        Object.assign(pluginFiber!.config, resolveConfig({ name: 'fixture', callback() {}, Config: WorkBuddy.Config } as never, saved))
-        pluginFiber!.effectiveConfig = resolveConfig({ name: 'fixture', callback() {}, Config: WorkBuddy.Config } as never, saved) as Record<string, unknown>
+        // This editor fixture applies a live volatile field without restarting
+        // the plugin. Retain Cordis's activation object and read-only getter.
+        pluginFiber!.rawConfig = saved
+        Object.assign(pluginFiber!.effectiveConfig, resolveConfig({ name: 'fixture', callback() {}, Config: WorkBuddy.Config } as never, saved))
       },
     }
 
