@@ -188,6 +188,28 @@ describe('model visibility card controls', () => {
     }
   })
 
+  it('edits and resets an account-scoped model default without a generation probe', async () => {
+    statusBody['models'] = [{ ...MODELS[0], availableEfforts: ['low', 'high'], savedDefaultEffort: 'high', upstreamDefaultEffort: 'low', defaultEffort: 'high' }]
+    await mount()
+    const select = view!.root.findAllByType('select').find(node => node.props['aria-label'] === `GLM-5.3 ${en.modelDefaultEffort}`)!
+    expect(select.props.value).toBe('high')
+    await act(async () => { select.props.onChange({ currentTarget: { value: 'low' } }) })
+    expect(posts[0]!.body).toEqual({ action: 'set-model-default-effort', model: 'glm-5.3', effort: 'low', account: 'u1:' })
+    await act(async () => { select.props.onChange({ currentTarget: { value: '' } }) })
+    expect(posts[1]!.body).toEqual({ action: 'set-model-default-effort', model: 'glm-5.3', account: 'u1:' })
+    expect(posts.some(post => post.body['action'] === 'probe')).toBe(false)
+  })
+
+  it('shows a failed default save and refreshes stale-account state', async () => {
+    statusBody['models'] = [{ ...MODELS[0], availableEfforts: ['low', 'high'], savedDefaultEffort: 'high' }]
+    postResponse = { state: 'stale-account' }
+    await mount()
+    const select = view!.root.findAllByType('select').find(node => node.props['aria-label'] === `GLM-5.3 ${en.modelDefaultEffort}`)!
+    await act(async () => { select.props.onChange({ currentTarget: { value: 'low' } }) })
+    expect(JSON.stringify(view!.toJSON())).toContain(en.visibilityStaleAccount)
+    expect(select.props.value).toBe('high')
+  })
+
   it('carries the checkbox, name, and context value on one row', async () => {
     await mount()
     const rows = rowTexts()

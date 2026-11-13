@@ -27,6 +27,8 @@ import { withWorkBuddyHostAuth } from './host-route-auth.ts'
 import { hostIsLoopback, originIsLoopback } from './loopback.ts'
 import { WORKBUDDY_PROBE_PATH } from './status-paths.ts'
 import type { WorkBuddyProbeAction } from './status-paths.ts'
+import { isWorkBuddyEffort } from './reasoning-default-store.ts'
+import type { WorkBuddyEffort } from './upstream.ts'
 
 /** Largest control body accepted; these payloads are a few dozen bytes. */
 const MAX_BODY_BYTES = 4096
@@ -60,6 +62,7 @@ export interface WorkBuddyProbeRouteOptions {
    * when it was not.
    */
   setModelContextWindow?: (modelId: string, window: number, expectedAccount: string) => Promise<{ state: string; reason?: string }>
+  setModelDefaultEffort?: (modelId: string, effort: WorkBuddyEffort | undefined, expectedAccount: string) => Promise<{ state: string; reason?: string }>
   setModelVisibility?: (modelId: string, visible: boolean, expectedAccount: string) => Promise<{ state: string; reason?: string }>
   /**
    * Route path to mount. Defaults to the CN variant's path so existing callers
@@ -126,6 +129,11 @@ function parseAction(text: string): WorkBuddyProbeAction | undefined {
     const { model, account, window } = wrapped
     if (typeof model !== 'string' || !model.trim() || typeof account !== 'string' || !account || typeof window !== 'number' || !Number.isSafeInteger(window) || window <= 0) return undefined
     return { action, model: model.trim(), account, window }
+  }
+  if (action === 'set-model-default-effort') {
+    const { model, account, effort } = wrapped
+    if (typeof model !== 'string' || !model.trim() || typeof account !== 'string' || !account || (effort !== undefined && !isWorkBuddyEffort(effort))) return undefined
+    return { action, model: model.trim(), account, ...(effort === undefined ? {} : { effort }) }
   }
   if (action === 'set-model-visibility') {
     const model = wrapped['model']
@@ -202,6 +210,11 @@ export function workBuddyProbeHandler(
       if (action.action === 'set-model-context-window') {
         if (deps.setModelContextWindow === undefined) { json(res, 404, { error: 'context-window-setting-not-supported' }); return }
         json(res, 200, await deps.setModelContextWindow(action.model as string, action.window as number, action.account as string))
+        return
+      }
+      if (action.action === 'set-model-default-effort') {
+        if (deps.setModelDefaultEffort === undefined) { json(res, 404, { error: 'reasoning-setting-not-supported' }); return }
+        json(res, 200, await deps.setModelDefaultEffort(action.model as string, action.effort as WorkBuddyEffort | undefined, action.account as string))
         return
       }
       if (action.action === 'set-model-visibility') {

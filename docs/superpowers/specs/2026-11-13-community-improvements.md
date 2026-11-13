@@ -1,0 +1,12 @@
+# Community reliability and model controls
+
+The user requested implementation of the improvements discussed in the plugin comparison. Preserve the Community provider IDs, account boundaries, message credit observations, existing UI composition and licenses. Use the existing checkout and dependencies. No new dependencies, automatic account rotation, prompt fingerprint obfuscation, or automatic conversation replay after a failed upstream request.
+
+Deliverables:
+1. Correct Chinese and English installation/version documentation. State single-response credit and platform/live acceptance boundaries precisely. Add an executable acceptance guide and a bounded feature roadmap.
+2. Classify explicit upstream model-busy (14003), exhausted credits (14018), policy rejection (11140), channel rejection (11128) and queue codes (6020/6021/6022) distinctly. Structured top-level codes only; genuine HTTP 401 remains authentication. Preserve useful errors while preventing deterministic failures from being retried or mislabelled quota/auth.
+3. Remove foreign assistant thinking before pi-ai can flatten it into visible assistant text. Keep original text, tools, own-model thinking, input objects and route identity unchanged. Test actual prepared-call wire bodies for both regions. Do not synthesize shared provider identity.
+4. Add per-region/account/model default reasoning preferences to existing model rows. Only accepted declared or validating-observed efforts are selectable. Explicit per-request choice wins; saved preference then valid upstream default then existing host behavior. Allow resetting to upstream/host default. Freeze prepared-call metadata, reject stale-account/invalid writes, persist before applying, share status/request decisions.
+5. Add explicit manual account management using plugin-owned saved accounts, with list/save-current/select/follow-desktop operations and redacted state. Do not sweep arbitrary files, switch automatically, export credentials, alter desktop auth, or silently refresh another selected account. Region/account and in-flight refresh isolation must be tested. Prefer CLI management to avoid redesigning the UI.
+
+Validation: focused regressions, `pnpm run check`, `node tools/check-repository.mjs`, scoped branch/PR, package and local installation/activation where host lifecycle permits. No publication or merge without explicit authorization. Live generation costs and actual installation state are separate evidence; no acceptance claims from fixtures.

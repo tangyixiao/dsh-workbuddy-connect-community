@@ -13,7 +13,9 @@ import type { WorkBuddyCredentialStore } from './auth.ts'
 import type { WorkBuddyUpstreamClient } from './upstream.ts'
 import { normalizeCredits } from './upstream.ts'
 import type { WorkBuddyModelInfo } from './catalog.ts'
-import { resolveEfforts } from './efforts.ts'
+import { resolveDefaultEffort, resolveEfforts } from './efforts.ts'
+import type { WorkBuddyEffort, WorkBuddyRegion } from './upstream.ts'
+import type { WorkBuddyProbeRecord } from './probe-store.ts'
 import { hostIsLoopback, originIsLoopback } from './loopback.ts'
 import { withWorkBuddyHostAuth } from './host-route-auth.ts'
 import { WORKBUDDY_STATUS_PATH } from './status-paths.ts'
@@ -28,6 +30,11 @@ export interface WorkBuddyStatusRouteOptions {
   client: Pick<WorkBuddyUpstreamClient, 'fetchCredits'>
   /** Resolve the current model catalog for free/badge display. */
   models: () => readonly WorkBuddyModelInfo[]
+  /** Reconcile manual selections before combining account and catalog facts. */
+  beforeRead?: () => Promise<void>
+  region?: WorkBuddyRegion
+  observe?: (modelId: string) => WorkBuddyProbeRecord | undefined
+  defaultEffort?: (modelId: string) => WorkBuddyEffort | undefined
   /**
    * Compact probe state for the card. Optional so the status route keeps
    * working on its own in tests and headless profiles.
@@ -94,6 +101,7 @@ function loopbackRequest(req: IncomingMessage): boolean {
 export async function workBuddyWebStatus(
   deps: WorkBuddyStatusRouteOptions,
 ): Promise<WorkBuddyWebStatus> {
+  await deps.beforeRead?.()
   const authStatus = await deps.store.status()
   if (authStatus.state !== 'signed-in') {
     // A diagnosable sign-out (a credential for the *other* product, or an
@@ -133,7 +141,11 @@ export async function workBuddyWebStatus(
   const modelsField: readonly WorkBuddyWebModelBadge[] = models
     .map(model => {
       const rate = normalizeCredits(model.billing?.credits)
-      const reasoning = resolveEfforts(model)
+      const reasoning = resolveEfforts(model, deps.observe?.(model.id), deps.region ?? 'cn')
+      const saved = deps.defaultEffort?.(model.id)
+      const preferred = saved !== undefined && reasoning.efforts.includes(saved) ? saved : undefined
+      const upstreamDefault = resolveDefaultEffort(model, reasoning.efforts)
+      const effective = resolveDefaultEffort(model, reasoning.efforts, preferred)
       // The largest window the upstream declares for this model, when it
       // declares alternatives; equal to `contextWindow` otherwise, and omitted
       // when the upstream said nothing.
@@ -156,9 +168,10 @@ export async function workBuddyWebStatus(
         ...reasoning.source === 'declared'
           ? { declaredEfforts: reasoning.efforts }
           : {},
-        ...model.reasoning?.defaultEffort !== undefined
-          ? { defaultEffort: model.reasoning.defaultEffort }
-          : {},
+        ...(reasoning.efforts.length > 0 ? { availableEfforts: reasoning.efforts } : {}),
+        ...(upstreamDefault === undefined ? {} : { upstreamDefaultEffort: upstreamDefault }),
+        ...(preferred === undefined ? {} : { savedDefaultEffort: preferred }),
+        ...(effective === undefined ? {} : { defaultEffort: effective }),
         // Verbatim from the upstream catalog; omitted when it said nothing.
         ...typeof model.contextWindow === 'number' && model.contextWindow > 0
           ? { contextWindow: model.contextWindow }

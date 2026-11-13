@@ -34,15 +34,15 @@ Sign in to the matching desktop product. Disable the original `dsh-workbuddy-con
 
 | Item | Current source of truth |
 | --- | --- |
-| Source version | `0.1.17` · 以 [package.json](package.json) 为准 |
+| Source version | `0.1.18` (unreleased candidate) · public install examples still use released `0.1.17` · see [package.json](package.json) |
 | Distribution | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
 | DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1` |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |
 | Development | [Open issues](https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues?q=is%3Aissue+is%3Aopen) · [CI](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions) |
 
-Observed `usage.credit` is neither a token-price estimate nor a session total. Validate catalogs, local sign-in and live upstream requests separately.
+The `usage.credit` beside a message is an observed value for one upstream response linked to that message. Records live in bounded memory and may disappear; they are not a durable billing ledger or a session total. Validate catalogs, local sign-in and live upstream requests separately.
 
-[Detailed usage, configuration and troubleshooting](docs/guide.en.md)
+[Detailed usage, configuration and troubleshooting](docs/guide.en.md) · [Acceptance steps](docs/acceptance.md) · [Feature roadmap and prerequisites](docs/roadmap.md)
 
 ## Development and participation
 

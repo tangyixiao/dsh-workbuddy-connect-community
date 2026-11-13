@@ -28,6 +28,7 @@ import type { DesktopAuthClassification, DesktopAuthFormat } from './desktop-cre
 import type { WorkBuddySignedOutReasonCode } from './status-paths.ts'
 import { CN_VARIANT, electronProfileFor, type WorkBuddyVariant } from './variants.ts'
 import type { WorkBuddyRefreshOutcome } from './upstream.ts'
+import { WorkBuddyAccountError, WorkBuddyAccountStore, type AccountSelection, type AccountSnapshot, type ManualAccountStatus, type SavedAccountSummary } from './account-store.ts'
 
 /** Normalized WorkBuddy credential, timestamps in epoch milliseconds. */
 export interface WorkBuddyCredential {
@@ -313,13 +314,15 @@ export class WorkBuddyCredentialStore {
   private readonly ownPath: string
   private readonly keyProvider: NonNullable<WorkBuddyStoreOptions['keyProvider']>
   private desktopPathOverride: string | undefined
-  private inflight: Promise<WorkBuddyCredential> | undefined
+  private readonly accounts: WorkBuddyAccountStore
+  private readonly inflight = new Map<string, Promise<WorkBuddyCredential>>()
 
   constructor(options: WorkBuddyStoreOptions) {
     this.variant = options.variant
     this.refresh = options.refresh
     this.refreshMarginMs = options.refreshMarginMs ?? 5 * 60 * 1000
     this.ownPath = options.ownPath ?? (options.variant ? join(resolveDshHome(), options.variant.ownFilename) : workbuddyOwnAuthPath())
+    this.accounts = new WorkBuddyAccountStore(`${this.ownPath}.accounts.json`, options.variant?.region ?? 'cn')
     // Legacy stores without a variant stay on the CN product the store's other
     // defaults already assume (own-copy filename, auth env var); a variant
     // without an electron profile falls back by id, keeping externally
@@ -367,6 +370,37 @@ export class WorkBuddyCredentialStore {
 
   /** Read the freshest stored credential without refreshing anything. */
   async current(): Promise<WorkBuddyCredential | undefined> {
+    return (await this.currentSnapshot()).credential
+  }
+
+  /** Selection is re-read on every call so a CLI and running host share state. */
+  private async currentSnapshot(): Promise<AccountSnapshot & { credential?: WorkBuddyCredential }> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const selection = await this.accounts.selection()
+      if (selection.selectedId !== null) return selection
+      const credential = await this.currentDesktop()
+      const after = await this.accounts.selection()
+      if (after.revision === selection.revision && after.selectedId === selection.selectedId) {
+        return { ...selection, ...credential === undefined ? {} : { credential } }
+      }
+    }
+    throw new WorkBuddyAccountError('account-selection-changed')
+  }
+
+  async listAccounts(): Promise<ManualAccountStatus> { return await this.accounts.list() }
+
+  /** Save the effective account without selecting it or performing a refresh. */
+  async saveCurrentAccount(): Promise<SavedAccountSummary> {
+    const captured = await this.currentSnapshot()
+    const credential = captured.credential
+    if (credential === undefined) throw new WorkBuddyAccountError('account-identity-missing')
+    return await this.accounts.save(credential, captured)
+  }
+
+  async selectAccount(id: string): Promise<void> { await this.accounts.select(id) }
+  async followDesktop(): Promise<void> { await this.accounts.select(null) }
+
+  private async currentDesktop(): Promise<WorkBuddyCredential | undefined> {
     const [desktop, own] = await Promise.all([this.readDesktop(), this.readOwn()])
     // A credential belonging to the other product is refused rather than used:
     // the two apps share one auth directory and differ only by filename, so a
@@ -405,7 +439,8 @@ export class WorkBuddyCredentialStore {
    * Single-flight, so parallel requests share one refresh.
    */
   async resolve(): Promise<WorkBuddyCredential> {
-    const credential = await this.current()
+    const selection = await this.currentSnapshot()
+    const credential = selection.credential
     if (credential === undefined) {
       const candidates = this.resolveDesktopCandidates()
       const desktop = candidates.length > 0 ? candidates.join(' or ') : '(no desktop path on this platform)'
@@ -416,11 +451,13 @@ export class WorkBuddyCredentialStore {
       )
     }
     if (!this.needsRefresh(credential)) return credential
-    this.inflight ??= this.refreshNow(credential)
-      .finally(() => {
-        this.inflight = undefined
-      })
-    return this.inflight
+    const key = JSON.stringify([selection.revision, selection.selectedId, credential.uid, credential.enterpriseId, credential.domain])
+    let pending = this.inflight.get(key)
+    if (pending === undefined) {
+      pending = this.refreshNow(credential, selection).finally(() => { this.inflight.delete(key) })
+      this.inflight.set(key, pending)
+    }
+    return await pending
   }
 
   /** Read-only sign-in summary; never refreshes and never throws. */
@@ -466,7 +503,7 @@ export class WorkBuddyCredentialStore {
     return Date.now() + this.refreshMarginMs >= credential.expiresAtMs
   }
 
-  private async refreshNow(credential: WorkBuddyCredential): Promise<WorkBuddyCredential> {
+  private async refreshNow(credential: WorkBuddyCredential, selection: AccountSelection): Promise<WorkBuddyCredential> {
     if (credential.refreshToken === '') {
       if (credential.expiresAtMs > Date.now() + 30_000) return credential
       throw new Error('workbuddy: access token expired and no refresh token is stored; sign in again in the WorkBuddy desktop app')
@@ -483,10 +520,19 @@ export class WorkBuddyCredentialStore {
         ...outcome.domain === undefined || outcome.domain === '' ? {} : { domain: outcome.domain },
         source: 'dsh',
       }
-      await this.saveOwn(refreshed)
+      if (this.variant !== undefined && regionOf(refreshed.domain) !== this.variant.region) {
+        throw new WorkBuddyAccountError('account-region-mismatch')
+      }
+      await this.accounts.commitRefresh(selection, refreshed, async () => { await this.saveOwn(refreshed) })
       return refreshed
     } catch (error: unknown) {
+      if (error instanceof WorkBuddyAccountError && error.code !== 'account-storage-unavailable') throw error
+      const currentSelection = await this.accounts.selection()
+      if (selection.revision !== currentSelection.revision || selection.selectedId !== currentSelection.selectedId) {
+        throw new WorkBuddyAccountError('account-selection-changed')
+      }
       if (credential.expiresAtMs > Date.now() + 30_000) return credential
+      if (error instanceof WorkBuddyAccountError) throw error
       throw new Error(
         `workbuddy: token refresh failed and the access token is expired (${String(error)});`
         + ' open the WorkBuddy desktop app once to sign in again',

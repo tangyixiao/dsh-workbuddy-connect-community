@@ -33,7 +33,9 @@ describe('credential writer coordination', () => {
       ownPath: path,
       refresh: async () => ({ accessToken: 'replacement', expiresInSec: 3600 }),
     })
-    await expect(store.resolve()).rejects.toThrow(/timed out/)
+    // Manual-account coordination deliberately exposes a fixed diagnostic
+    // code instead of raw filesystem/lock details. The refusal is unchanged.
+    await expect(store.resolve()).rejects.toMatchObject({ code: 'account-storage-unavailable' })
     await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
     expect(await readFile(`${path}.lock`, 'utf8')).toBe(`${process.pid}\n`)
   })

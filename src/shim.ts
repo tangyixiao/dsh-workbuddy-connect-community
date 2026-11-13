@@ -21,8 +21,9 @@ import { Readable } from 'node:stream'
 import type { WorkBuddyCredentialStore } from './auth.ts'
 import type { WorkBuddyCatalog } from './catalog.ts'
 import { bindToUsablePort, hostIsLoopback, originIsLoopback } from './loopback.ts'
-import { extractDisplayErrorMessage, prepareChatBody, WorkBuddyUpstreamClient, type UpstreamErrorKind } from './upstream.ts'
+import { extractDisplayErrorMessage, prepareChatBody, upstreamBusinessCode, WorkBuddyUpstreamClient, type UpstreamErrorKind } from './upstream.ts'
 import { WorkBuddyCreditSseObserver } from './credit-log.ts'
+import { WORKBUDDY_ACCOUNT_SCOPE_HEADER, workBuddyRequestScope } from './account-scope.ts'
 
 /** Minimal logger surface the plugin context already provides. */
 export interface ShimLogger {
@@ -53,6 +54,8 @@ export interface WorkBuddyShimOptions {
   client: Pick<WorkBuddyUpstreamClient, 'chatStream'>
   catalog: WorkBuddyCatalog
   logger?: ShimLogger
+  /** Real host adapters bind prepared settings to the resolved billing account. */
+  requireAccountScope?: boolean
   /** Receives only a completed upstream response's observed credit. */
   onCredit?: (responseId: string, credit: number) => void
   /** Captures request account scope and an epoch shared with host reconciliation. */
@@ -71,11 +74,32 @@ function isJsonContentType(req: IncomingMessage): boolean {
 /** HTTP status each upstream failure class surfaces as. */
 const KIND_STATUS: Readonly<Record<UpstreamErrorKind, number>> = {
   hard_credit: 402,
+  model_busy: 429,
+  policy_reject: 400,
+  channel_reject: 400,
+  queue: 400,
   soft_rate: 429,
   session_dead: 401,
   not_found: 502,
   server: 502,
   client: 400,
+}
+
+/**
+ * The installed host scans text before using the mapped HTTP status: bare
+ * 401/403 means AUTH and quota wording wins over rate limits. Fullwidth forms
+ * retain readable upstream detail without overriding an explicit business code.
+ * NFKC normalization recovers the original text for diagnostic comparison.
+ */
+function businessDisplayDetail(detail: string, kind: UpstreamErrorKind): string {
+  if (kind === 'session_dead') return detail
+  const fullwidth = (text: string): string => text.replace(/[!-~]/gu, char => String.fromCharCode(char.charCodeAt(0) + 0xfee0))
+  let safe = detail.replace(/\b(?:401|403)\b/gu, fullwidth)
+  if (kind === 'model_busy' || kind === 'policy_reject' || kind === 'channel_reject' || kind === 'queue') {
+    safe = safe.replace(/\b(?:quota|balance|credits?|budget|usage)\b/giu, fullwidth)
+    if (kind !== 'model_busy') safe = safe.replace(/\b429\b|rate.?limit/giu, fullwidth)
+  }
+  return safe
 }
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {
@@ -232,6 +256,11 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
       return
     }
     const requestAccount = `${credential.uid}:${credential.enterpriseId ?? ''}`
+    if (options.requireAccountScope && req.headers[WORKBUDDY_ACCOUNT_SCOPE_HEADER] !== workBuddyRequestScope(credential)) {
+      res.setHeader('x-should-retry', 'false')
+      writeOpenAIError(res, 400, 'account_changed', 'WorkBuddy account changed; refresh the model list and send again')
+      return
+    }
     const requestGeneration = epochAtRequestStart ?? identifyAccount(credential)
 
     // The client's disconnect must reach the upstream request, or "Stop" only
@@ -272,15 +301,15 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
     const result = await client.chatStream(credential, prepared, controller.signal)
 
     if (!result.ok) {
-      const detail = extractDisplayErrorMessage(result.message) ?? result.message.slice(0, 400)
+      const detail = businessDisplayDetail(extractDisplayErrorMessage(result.message) ?? result.message.slice(0, 400), result.kind)
       // The localized block message is shared by several failures. Preserve
       // only the numeric business code, not the upstream response or msg.
       let businessCode = ''
       if (detail.includes('请求被拦截')) {
         try {
           const response = JSON.parse(result.message) as { code?: unknown; msg?: unknown }
-          const code = response.code
-          if (typeof code === 'number' && Number.isInteger(code) && code >= 10000 && code <= 99999) {
+          const code = upstreamBusinessCode(result.message)
+          if (code !== undefined && code >= 10000 && code <= 99999) {
             const knownReasons: Record<string, string> = {
               'illegal api invocation from an unapproved channel': 'unapproved-channel',
               'first message is not system prompt': 'first-system-missing',
@@ -302,21 +331,22 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
           }
         } catch { /* non-JSON errors have no safe business code */ }
       }
-      // The host adapter classifies any error text containing a bare
-      // `401`/`403` word as AUTH, which would mask business errors (safety
-      // review, illegal request) behind an "invalid API key" banner. Only
-      // session failures keep the status note — every 401 classifies as
-      // session_dead, so genuine auth errors stay recognisable. Known
-      // residue: an extracted display text that itself names 403 still trips
-      // the host heuristic; the real text wins over hiding the number.
-      const statusNote = (result.status === 401 || result.status === 403) && result.kind !== 'session_dead'
+      const businessFailure = ['model_busy', 'hard_credit', 'policy_reject', 'channel_reject', 'queue'].includes(result.kind)
+      // Explicit business classifications use the mapped status; an upstream
+      // 429 or 403 must not mask a deterministic policy/channel/queue refusal.
+      const status = businessFailure ? KIND_STATUS[result.kind] : result.status
+      const statusNote = (status === 401 || status === 403) && result.kind !== 'session_dead'
         ? ''
-        : ` (http ${result.status})`
+        : ` (http ${status})`
+      // The bundled OpenAI SDK honors this header. Avoid transport-level
+      // replays; the user/host recovery flow owns any later retry decision.
+      if (businessFailure) res.setHeader('x-should-retry', 'false')
+      const quotaHint = result.kind === 'hard_credit' ? ' (insufficient credits)' : ''
       writeOpenAIError(
         res,
         KIND_STATUS[result.kind],
         result.kind,
-        `workbuddy upstream ${result.kind}${statusNote}: ${detail}${businessCode}`,
+        `workbuddy upstream ${result.kind}${statusNote}${quotaHint}: ${detail}${businessCode}`,
       )
       return
     }
