@@ -28,7 +28,7 @@ import type { DesktopAuthClassification, DesktopAuthFormat } from './desktop-cre
 import type { WorkBuddySignedOutReasonCode } from './status-paths.ts'
 import { CN_VARIANT, electronProfileFor, type WorkBuddyVariant } from './variants.ts'
 import type { WorkBuddyRefreshOutcome } from './upstream.ts'
-import { WorkBuddyAccountError, WorkBuddyAccountStore, type AccountSelection, type AccountSnapshot, type ManualAccountStatus, type SavedAccountSummary } from './account-store.ts'
+import { WorkBuddyAccountError, WorkBuddyAccountStore, workbuddySavedAccountId, type AccountSelection, type AccountSnapshot, type ManualAccountStatus, type SavedAccountSummary, type SavedAccountCapture } from './account-store.ts'
 
 /** Normalized WorkBuddy credential, timestamps in epoch milliseconds. */
 export interface WorkBuddyCredential {
@@ -389,16 +389,41 @@ export class WorkBuddyCredentialStore {
 
   async listAccounts(): Promise<ManualAccountStatus> { return await this.accounts.list() }
 
+  /** Opaque account key for owner settings; never an access token or raw uid. */
+  accountId(credential: WorkBuddyCredential): string { return workbuddySavedAccountId(this.variant?.region ?? 'cn', credential) }
+
+  /** Internal request snapshot only. Do not serialize credentials or fingerprint fields. */
+  async accountSnapshot(): Promise<AccountSnapshot & { credential?: WorkBuddyCredential }> { return await this.currentSnapshot() }
+
+  async currentSavedAccount(id: string, captured: AccountSnapshot): Promise<WorkBuddyCredential> {
+    return (await this.accounts.saved(id, captured)).credential
+  }
+
+  /** Refresh exactly one configured saved member without changing global selection. */
+  async resolveSavedAccount(id: string, captured: AccountSnapshot): Promise<WorkBuddyCredential> {
+    const saved = await this.accounts.saved(id, captured)
+    if (!this.needsRefresh(saved.credential)) return saved.credential
+    const key = JSON.stringify(['saved', id, saved.revision, saved.controlRevision, saved.credentialRevision])
+    let pending = this.inflight.get(key)
+    if (pending === undefined) {
+      pending = this.refreshSaved(saved).finally(() => { this.inflight.delete(key) })
+      this.inflight.set(key, pending)
+    }
+    return await pending
+  }
+
   /** Save the effective account without selecting it or performing a refresh. */
-  async saveCurrentAccount(): Promise<SavedAccountSummary> {
+  async saveCurrentAccount(expectedRevision?: string): Promise<SavedAccountSummary> {
     const captured = await this.currentSnapshot()
     const credential = captured.credential
     if (credential === undefined) throw new WorkBuddyAccountError('account-identity-missing')
-    return await this.accounts.save(credential, captured)
+    return await this.accounts.save(credential, captured, expectedRevision)
   }
 
-  async selectAccount(id: string): Promise<void> { await this.accounts.select(id) }
-  async followDesktop(): Promise<void> { await this.accounts.select(null) }
+  async selectAccount(id: string, expectedRevision?: string): Promise<void> { await this.accounts.select(id, expectedRevision) }
+  async followDesktop(expectedRevision?: string): Promise<void> { await this.accounts.select(null, expectedRevision) }
+  async renameAccount(id: string, label: string, expectedRevision?: string): Promise<void> { await this.accounts.rename(id, label, expectedRevision) }
+  async removeAccount(id: string, expectedRevision?: string): Promise<void> { await this.accounts.remove(id, expectedRevision) }
 
   private async currentDesktop(): Promise<WorkBuddyCredential | undefined> {
     const [desktop, own] = await Promise.all([this.readDesktop(), this.readOwn()])
@@ -501,6 +526,35 @@ export class WorkBuddyCredentialStore {
   private needsRefresh(credential: WorkBuddyCredential): boolean {
     if (credential.expiresAtMs <= 0) return true
     return Date.now() + this.refreshMarginMs >= credential.expiresAtMs
+  }
+
+  private async refreshSaved(captured: SavedAccountCapture): Promise<WorkBuddyCredential> {
+    const credential = captured.credential
+    if (credential.refreshToken === '') {
+      if (credential.expiresAtMs > Date.now() + 30_000) return credential
+      throw new Error('workbuddy: saved credential expired')
+    }
+    try {
+      const outcome = await this.refresh(credential)
+      const refreshed: WorkBuddyCredential = {
+        ...credential,
+        accessToken: outcome.accessToken,
+        ...outcome.refreshToken === undefined ? {} : { refreshToken: outcome.refreshToken },
+        expiresAtMs: outcome.expiresInSec === undefined ? credential.expiresAtMs : Date.now() + outcome.expiresInSec * 1000,
+        ...outcome.domain === undefined || outcome.domain === '' ? {} : { domain: outcome.domain },
+        source: 'dsh',
+      }
+      if (this.variant !== undefined && regionOf(refreshed.domain) !== this.variant.region) throw new WorkBuddyAccountError('account-region-mismatch')
+      await this.accounts.commitSavedRefresh(captured, refreshed)
+      return refreshed
+    } catch (error) {
+      if (error instanceof WorkBuddyAccountError && error.code !== 'account-storage-unavailable') throw error
+      // Even fallback may only use the unchanged captured member and selection.
+      const current = await this.accounts.saved(captured.id, captured)
+      if (current.credentialRevision !== captured.credentialRevision) throw new WorkBuddyAccountError('account-selection-changed')
+      if (credential.expiresAtMs > Date.now() + 30_000) return credential
+      throw error instanceof WorkBuddyAccountError ? error : new Error('workbuddy: saved credential refresh failed')
+    }
   }
 
   private async refreshNow(credential: WorkBuddyCredential, selection: AccountSelection): Promise<WorkBuddyCredential> {

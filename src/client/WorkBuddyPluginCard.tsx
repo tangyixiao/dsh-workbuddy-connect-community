@@ -13,6 +13,7 @@ import type { WorkBuddyWebCreditAccount, WorkBuddyWebCreditExpiry } from '../sta
 import type { WorkBuddySignedOutReasonCode, WorkBuddyWebModelBadge, WorkBuddyWebProbeSection, WorkBuddyWebStatus, WorkBuddyWebVisibilitySection } from '../status-paths.ts'
 import { isWorkBuddyWebStatus } from './status-document.ts'
 import type { WorkBuddySettingsKey } from './locales.ts'
+import { WorkBuddyToolkitPanel } from './WorkBuddyToolkitPanel.tsx'
 
 /** Localized copy injected by the browser-plugin registration. */
 export interface WorkBuddyPluginCardInjected {
@@ -608,8 +609,23 @@ function ModelOfferRow({ model, t }: {
         // silence here reads as "free", which is the claim being avoided.
         ? model.rateUnknown === true ? <span style={modelRateStyle}>{t('rateUnknown')}</span> : null
         : <span style={modelRateStyle}>{t('rate', { rate: model.credits })}</span>}
+      <ModelFacts model={model} t={t} />
     </div>
   )
+}
+
+function ModelFacts({ model, t }: { model: WorkBuddyWebModelBadge; t: WorkBuddyPluginCardInjected['t'] }): React.ReactNode {
+  const availability = model.availability !== undefined && model.availability.expiresAt > Date.now() ? model.availability : undefined
+  const activity = model.promotion
+  const stateKey = activity?.state === 'active' ? 'promotionActive' : activity?.state === 'inactive' ? 'promotionInactive' : activity?.state === 'expired' ? 'promotionExpired' : 'promotionUnknown'
+  return <>
+    {availability === undefined ? null : <span style={modelRateStyle} title={`${t('observedAt', { time: formatTime(availability.observedAt) })}${availability.retryAt === undefined ? '' : ` · ${t('retryAt', { time: formatTime(availability.retryAt) })}`}`}>
+      {t(availability.kind === 'model_busy' ? 'availabilityBusy' : availability.code === 6021 ? 'availabilityQueueFull' : availability.code === 6022 ? 'availabilityQueueLimit' : 'availabilityQueue')}
+    </span>}
+    {activity === undefined ? null : <span style={modelRateStyle} title={`${t('promotionSource', { source: t(activity.source === 'product-config' ? 'promotionProduct' : 'promotionConsole'), time: formatTime(activity.fetchedAt) })}${activity.timeZone === undefined ? '' : ` · ${activity.timeZone}`}${activity.daily === undefined ? '' : ` ${activity.daily.map(window => `${window.start}–${window.end}`).join(', ')}`}${activity.validUntil === undefined ? '' : ` · ${formatTime(activity.validUntil)}`}`}>
+      {t('promotionObserved', { state: t(stateKey) })}
+    </span>}
+  </>
 }
 
 /**
@@ -725,6 +741,7 @@ function ContextTable({ models, t, useMaximumContextWindow, contextPreferenceDis
                   </span>
                   {model.credits === undefined ? null
                     : <span style={modelRateStyle}>{model.credits}</span>}
+                  <ModelFacts model={model} t={t} />
                 </span>
               </span>
               <span style={modelOfferStyle}>
@@ -1269,6 +1286,7 @@ export function WorkBuddyPluginCard({ t, variant = CN_CARD_VARIANT }: WorkBuddyP
       </button>
       {open
         ? <div style={cardBodyStyle}>
+            <WorkBuddyToolkitPanel provider={variant.id} t={t} />
             <h3 style={quotaTitleStyle}>{t('accountHeading')}</h3>
             <div style={rowStyle}>
               {/* `aria-busy` while nothing has been read: the value is pending, not absent. */}

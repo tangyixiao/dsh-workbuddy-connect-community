@@ -106,6 +106,25 @@ describe('WorkBuddyCatalogStore', () => {
     expect(text).toContain('uid-1:ent-1')
   })
 
+  it.each([
+    { promotionDefinitions: [null] },
+    { promotionDefinitions: [{ enabled: true, schedule: 'daily', priority: 1, label: 'Offer', timeZone: 'UTC', daily: [null] }] },
+    { promotionProvenance: null },
+    { promotionProvenance: { source: 'product-config', fetchedAt: 'yesterday' } },
+    { promotions: [null] },
+  ])('discards corrupt persisted promotion metadata without losing another account: %j', metadata => {
+    const { path } = tempStore()
+    const entry = (id: string, row: unknown) => ({ account: id, source: 'workbuddy:cli', fetchedAtMs: 1, models: [row] })
+    writeFileSync(path, JSON.stringify({ version: 1, entries: {
+      bad: entry('bad', { ...model('bad-model'), ...metadata }),
+      good: entry('good', model('good-model')),
+    } }))
+    const store = new WorkBuddyCatalogStore(path)
+    expect(() => store.get('bad')).not.toThrow()
+    expect(store.get('bad')).toBeUndefined()
+    expect(store.get('good')?.models[0]?.id).toBe('good-model')
+  })
+
   it('survives an unwritable path without throwing', () => {
     const dir = mkdtempSync(join(tmpdir(), 'wb-catalog-blocked-'))
     CLEANUP.push(dir)

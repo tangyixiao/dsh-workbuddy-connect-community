@@ -28,6 +28,11 @@ export function mergeDesktopContextWindows(models: readonly WorkBuddyUpstreamMod
 
 /** Read only a recent local desktop snapshot for this exact personal account. */
 export function readDesktopContextProduct(uid: string, enterpriseId?: string, home = homedir(), now = Date.now()): unknown {
+  return readDesktopContextSnapshot(uid, enterpriseId, home, now)?.product
+}
+
+/** Preserve the actual cache observation time instead of making a saved schedule look newly fetched. */
+export function readDesktopContextSnapshot(uid: string, enterpriseId?: string, home = homedir(), now = Date.now()): { product: unknown; fetchedAt: number } | undefined {
   if (!/^[a-zA-Z0-9_-]+$/.test(uid) || enterpriseId) return undefined
   const root = join(home, '.workbuddy', 'storage', `user-${uid}-personal`, 'scoped')
   try {
@@ -38,6 +43,6 @@ export function readDesktopContextProduct(uid: string, enterpriseId?: string, ho
     const file = candidates[0]
     if (file === undefined) return undefined
     const snapshot = record(record(JSON.parse(readFileSync(file.path, 'utf8')))?.['product-config-snapshot'])
-    return snapshot?.['data']
+    return snapshot?.['data'] === undefined ? undefined : { product: snapshot['data'], fetchedAt: file.time }
   } catch { return undefined }
 }

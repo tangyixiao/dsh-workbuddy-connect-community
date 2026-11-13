@@ -24,6 +24,7 @@ import { bindToUsablePort, hostIsLoopback, originIsLoopback } from './loopback.t
 import { extractDisplayErrorMessage, prepareChatBody, upstreamBusinessCode, WorkBuddyUpstreamClient, type UpstreamErrorKind } from './upstream.ts'
 import { WorkBuddyCreditSseObserver } from './credit-log.ts'
 import { WORKBUDDY_ACCOUNT_SCOPE_HEADER, workBuddyRequestScope } from './account-scope.ts'
+import type { WorkBuddyCredential } from './auth.ts'
 
 /** Minimal logger surface the plugin context already provides. */
 export interface ShimLogger {
@@ -56,6 +57,8 @@ export interface WorkBuddyShimOptions {
   logger?: ShimLogger
   /** Real host adapters bind prepared settings to the resolved billing account. */
   requireAccountScope?: boolean
+  /** Server-only passive outcome observation; never retries or changes this call. */
+  onOutcome?: (event: { credential: WorkBuddyCredential; model: string; kind?: UpstreamErrorKind; code?: number; retryAt?: number }) => void
   /** Receives only a completed upstream response's observed credit. */
   onCredit?: (responseId: string, credit: number) => void
   /** Captures request account scope and an epoch shared with host reconciliation. */
@@ -299,6 +302,17 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
     const raw = (await readBody(req)).toString('utf8')
     const prepared = prepareChatBody(raw)
     const result = await client.chatStream(credential, prepared, controller.signal)
+    if (options.onOutcome !== undefined) {
+      try {
+        const model: unknown = (JSON.parse(prepared) as Record<string, unknown>)['model']
+        if (typeof model === 'string') options.onOutcome({ credential, model,
+          ...(result.ok ? {} : { kind: result.kind,
+            ...(upstreamBusinessCode(result.message) === undefined ? {} : { code: upstreamBusinessCode(result.message)! }),
+            ...(result.retryAt === undefined ? {} : { retryAt: result.retryAt }),
+          }),
+        })
+      } catch { /* observational state cannot fail a chat response */ }
+    }
 
     if (!result.ok) {
       const detail = businessDisplayDetail(extractDisplayErrorMessage(result.message) ?? result.message.slice(0, 400), result.kind)

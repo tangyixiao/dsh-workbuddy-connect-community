@@ -34,7 +34,7 @@ dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.17
 
 | 项目 | 当前依据 |
 | --- | --- |
-| 源码版本 | `0.1.18`（未发布候选）· 公开安装示例仍使用已发布的 `0.1.17` · 以 [package.json](package.json) 为准 |
+| 源码版本 | `0.1.19`（未发布候选）· 公开安装示例仍使用已发布的 `0.1.17` · 以 [package.json](package.json) 为准 |
 | 分发方式 | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
 | DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1` |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |

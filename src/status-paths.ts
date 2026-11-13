@@ -1,4 +1,6 @@
 /** Node-free constants and types shared by the Host and browser halves. */
+import type { WorkBuddyAvailability } from './availability.ts'
+import type { PromotionFacts } from './promotions.ts'
 
 /** Plugin-owned status endpoint consumed by its browser half. */
 export const WORKBUDDY_STATUS_PATH = '/plugins/dsh-workbuddy-connect/status'
@@ -178,6 +180,8 @@ export interface WorkBuddyWebCredits {
 
 /** Billing convenience facts for one model, rendered as card badges. */
 export interface WorkBuddyWebModelBadge {
+  availability?: WorkBuddyAvailability
+  promotion?: PromotionFacts
   id: string
   name: string
   /** Whether the model is currently free (`x0.00` credits). */

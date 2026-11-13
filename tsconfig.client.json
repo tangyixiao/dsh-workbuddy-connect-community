@@ -21,6 +21,7 @@
     ]
   },
   "include": [
+    "tests/toolkit-panel.spec.ts",
     "src/client",
     "tests/probe-composer.spec.ts",
     "tests/issue-125-probe-lifecycle.spec.ts",
