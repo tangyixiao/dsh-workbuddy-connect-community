@@ -67,7 +67,7 @@ dsh-workbuddy-connect-community accounts follow-desktop --provider workbuddy
 
 ## 诊断与可分享报告
 
-以下 `--share` 功能包含在 0.1.12 中，0.1.10 包不包含该功能。运行 `dsh-workbuddy-connect-community doctor --share` 可生成可复制的 JSON 诊断报告；国际版使用 `dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai`。该报告只包含版本、运行时、平台、架构、provider、登录文件是否存在及格式、登录状态和已知原因码、主机心跳状态、内置模型数，以及安全的应用版本来源标记。报告不含本地路径、账号标识、进程号、时间戳或自由文本错误。`readiness.authentication` 的 `credential-found` 仅表示凭据可被本地解析，不验证访问令牌是否仍有效，也不尝试刷新；`readiness.liveInference` 固定为 `not-tested`，命令不会发送模型请求。若本地诊断读取失败，命令仍会输出仅含固定 `diagnostic-unavailable` 错误码的 JSON。报告不代表服务可用。
+以下 `--share` 功能从正式版 0.1.11 起提供，当前已发布的 0.1.17 也包含；0.1.10 包不包含该功能。运行 `dsh-workbuddy-connect-community doctor --share` 可生成可复制的 JSON 诊断报告；国际版使用 `dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai`。该报告只包含版本、运行时、平台、架构、provider、登录文件是否存在及格式、登录状态和已知原因码、主机心跳状态、内置模型数，以及安全的应用版本来源标记。报告不含本地路径、账号标识、进程号、时间戳或自由文本错误。`readiness.authentication` 的 `credential-found` 仅表示凭据可被本地解析，不验证访问令牌是否仍有效，也不尝试刷新；`readiness.liveInference` 固定为 `not-tested`，命令不会发送模型请求。若本地诊断读取失败，命令仍会输出仅含固定 `diagnostic-unavailable` 错误码的 JSON。报告不代表服务可用。
 
 普通 `doctor` 输出仍用于本机排查；已知原因码是稳定枚举，可用于判断下一步。`no-credential` 表示没有可用登录凭据；`encrypted-credential-unreadable` 表示加密凭据无法解锁；`electron-binary-not-found`、`electron-binary-ambiguous`、`electron-binary-unavailable`、`electron-path-invalid` 和 `electron-discovery-incomplete` 分别说明辅助程序未找到、候选不唯一、平台未提供自动发现、指定路径无效或发现流程未完成；`credential-region-mismatch` 表示凭据属于另一个 WorkBuddy 产品。未知原因码不会进入共享报告。
 
