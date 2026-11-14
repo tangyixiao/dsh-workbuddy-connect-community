@@ -206,7 +206,7 @@ export interface WorkBuddyAdapterOptions {
   /** Current account's saved default. Validated against this call's offered set. */
   defaultEffort?: (modelId: string) => WorkBuddyEffort | undefined
   /** Reconcile credentials/catalog before reading account-scoped preferences. */
-  prepareAccount?: () => Promise<string | undefined>
+  prepareAccount?: (mode?: 'read' | 'request', model?: string) => Promise<string | undefined>
 }
 
 /** What {@link createWorkBuddyAdapter} hands back. */
@@ -419,7 +419,7 @@ class WorkBuddyPiAiAdapter extends PiAiAdapter {
     private readonly catalog: WorkBuddyCatalog,
     private readonly hidden: () => readonly string[],
     private readonly defaultEffort: (modelId: string) => WorkBuddyEffort | undefined,
-    private readonly prepareAccount: (() => Promise<string | undefined>) | undefined,
+    private readonly prepareAccount: ((mode?: 'read' | 'request', model?: string) => Promise<string | undefined>) | undefined,
     options: ConstructorParameters<typeof PiAiAdapter>[0],
     private readonly prepareSnapshot: (provider: string, model: string, signal?: AbortSignal, scope?: string) => Promise<PreparedAdapterCall>,
   ) {
@@ -432,7 +432,7 @@ class WorkBuddyPiAiAdapter extends PiAiAdapter {
   }
 
   override async listModels(provider: string): Promise<readonly LlmModelInfo[]> {
-    await this.prepareAccount?.()
+    await this.prepareAccount?.('read')
     const models = await super.listModels(provider)
     // Resolved fresh per call: the picker reads this after every
     // `llm/adapters-updated`, so an account switch or a toggle takes effect on
@@ -464,14 +464,14 @@ class WorkBuddyPiAiAdapter extends PiAiAdapter {
   }
 
   override async resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo> {
-    await this.prepareAccount?.()
+    await this.prepareAccount?.('read')
     const info = this.infoFor(model)
     const preferred = this.defaultEffort(model)
     return this.withCatalogInfo(await super.resolveModel(provider, model, signal), info, preferred)
   }
 
   override async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall> {
-    const scope = await this.prepareAccount?.()
+    const scope = await this.prepareAccount?.('request', model)
     const info = this.infoFor(model)
     const preferred = this.defaultEffort(model)
     const prepared = await this.prepareSnapshot(provider, model, signal, scope)

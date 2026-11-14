@@ -2,6 +2,12 @@ import { ContextWindowStore } from './context-window-store.ts'
 import { ReasoningDefaultStore } from './reasoning-default-store.ts'
 import { updateModelDefaultEffort } from './reasoning-control.ts'
 import { workBuddyRequestScope } from './account-scope.ts'
+import { WorkBuddyToolkitRuntime } from './toolkit-runtime.ts'
+import { ToolkitHostManager } from './toolkit-host.ts'
+import { currentToolkitRescueFrame } from './context-rescue-guard.ts'
+import { WorkBuddyAvailabilityStore } from './availability.ts'
+import { registerToolkitRoute } from './toolkit-route.ts'
+import { toolkitPath } from './toolkit-types.ts'
 /**
  * WorkBuddy models for DeepSeek Harness, reusing the WorkBuddy desktop apps'
  * sign-in. Registers one provider per product variant — `workbuddy` for the CN
@@ -360,6 +366,9 @@ interface VariantRuntime {
   visibilityStore: WorkBuddyVisibilityStore
   contextWindowStore: ContextWindowStore
   reasoningDefaultStore: ReasoningDefaultStore
+  toolkit: WorkBuddyToolkitRuntime
+  availability: WorkBuddyAvailabilityStore
+  requestScope: string | undefined
   reconcile: () => Promise<void>
   creditLog: WorkBuddyCreditLog
   /**
@@ -457,12 +466,14 @@ function createVariantRuntime(
 ): VariantRuntime {
   const client = new WorkBuddyUpstreamClient()
   const configured = configuredAuthFile(config, variant)
-  const store = new WorkBuddyCredentialStore({
+  const baseStore = new WorkBuddyCredentialStore({
     variant,
     ...configured === undefined ? {} : { desktopPath: configured },
     ...keyProvider === undefined ? {} : { keyProvider },
     refresh: credential => client.refreshToken(credential),
   })
+  const toolkit = new WorkBuddyToolkitRuntime(baseStore, variant, client)
+  const store = toolkit.view
   const fallback = fallbackFor(variant)
   const catalog = new WorkBuddyCatalog(fallback)
   if (variant.id !== CN_VARIANT.id) catalog.setUseMaximumContextWindow(plainConfigBoolean(config.useMaximumContextWindow) === true)
@@ -503,6 +514,9 @@ function createVariantRuntime(
     variant,
     retryPolicy: resolveRetryPolicy(config.retryPolicy, `dsh-workbuddy-connect: ${variant.id} retryPolicy`),
     store,
+    toolkit,
+    availability: new WorkBuddyAvailabilityStore(),
+    requestScope: undefined,
     client,
     catalog,
     probeStore,
@@ -602,6 +616,14 @@ async function startVariant(ctx: Context, runtime: VariantRuntime): Promise<bool
   const shim = createWorkBuddyShim({
     store, client, catalog, logger: ctx.logger,
     requireAccountScope: true,
+    onOutcome: event => {
+      const scope = workBuddyRequestScope(event.credential)
+      if (event.kind === undefined) runtime.availability.success(scope, event.model)
+      else {
+        runtime.availability.record(scope, event.model, event.kind, event.code, event.retryAt)
+        runtime.toolkit.policy.observeFailure(event.kind, event.credential)
+      }
+    },
     creditEpoch: () => runtime.creditLog.epoch,
     onCreditScoped: (responseId, credit, account, epoch) => runtime.creditLog.observe(responseId, credit, account, epoch),
   })
@@ -633,7 +655,18 @@ async function startVariant(ctx: Context, runtime: VariantRuntime): Promise<bool
         ref,
       ),
       observe: modelId => probeService.recordFor(modelId),
-      prepareAccount: async () => {
+      prepareAccount: async (mode, model) => {
+        // Only preparation of a new independent call may consume rotation.
+        // Listing/status reads and the shim's frozen call never advance it.
+        const rescue = mode === 'request' ? currentToolkitRescueFrame() : undefined
+        if (mode === 'request') {
+          if (rescue === undefined) await runtime.toolkit.policy.beginRequest()
+          else {
+            if (rescue.provider !== variant.id || rescue.model !== model) throw new Error('WorkBuddy rescue request target changed')
+            const current = await runtime.toolkit.policy.resolveCurrent()
+            await rescue.checkScope(variant.id, runtime.toolkit.base.accountId(current))
+          }
+        }
         await runtime.reconcile()
         // Reconciliation has already reported/refused unreadable or wrong-
         // region credentials and hidden their catalog. Listing stays empty.
@@ -641,6 +674,7 @@ async function startVariant(ctx: Context, runtime: VariantRuntime): Promise<bool
         // Both routes are registered even for a CN-only/global-only user.
         // Reconciliation hides a signed-out catalog; listing must stay empty.
         if (credential === undefined) return undefined
+        if (rescue !== undefined) await rescue.checkScope(variant.id, runtime.toolkit.base.accountId(credential))
         if (visibilityAccountOf(credential) !== runtime.account()) throw new Error('WorkBuddy account changed; refresh the model list and send again')
         return workBuddyRequestScope(credential)
       },
@@ -869,6 +903,12 @@ export function apply(ctx: Context, config: Config): void {
         client: runtime.client,
         models: () => runtime.catalog.current(),
         beforeRead: () => runtime.reconcile(),
+        availability: modelId => {
+          const account = runtime.account()
+          // The adopted catalog identity uses uid:enterprise; scope comes from
+          // the effective credential cached by reconciliation below.
+          return account === undefined || runtime.requestScope === undefined ? undefined : runtime.availability.get(runtime.requestScope, modelId)
+        },
         region: runtime.variant.region,
         observe: modelId => runtime.probeService.recordFor(modelId),
         defaultEffort: modelId => {
@@ -895,6 +935,15 @@ export function apply(ctx: Context, config: Config): void {
           useMaximumContextWindow: () => (legacySettingsAvailable || settingsAvailable)
             ? plainConfigBoolean(current().useMaximumContextWindow) === true
             : undefined,
+        },
+      })
+      registerToolkitRoute(webCtx, {
+        path: toolkitPath(runtime.variant.id), key: probeKey,
+        state: () => runtime.toolkit.state(probeKey),
+        action: async action => {
+          const result = await runtime.toolkit.action(action)
+          await runtime.reconcile()
+          return result
         },
       })
       registerWorkBuddyProbeRoute(webCtx, {
@@ -1351,6 +1400,7 @@ export function apply(ctx: Context, config: Config): void {
    */
   const syncVariant = async (runtime: VariantRuntime): Promise<void> => {
     if (stopped || !runtime.registered) return
+    await runtime.toolkit.refresh().catch(() => {})
     const credential = await runtime.store.current().catch((error: unknown) => {
       // A region mismatch or an unreadable file is reported, not swallowed as
       // "signed out": the user needs to know which file to fix.
@@ -1360,9 +1410,12 @@ export function apply(ctx: Context, config: Config): void {
     if (stopped) return
 
     if (credential === undefined) {
+      runtime.requestScope = undefined
       adoptIdentity(runtime, undefined, undefined)
       return
     }
+
+    runtime.requestScope = workBuddyRequestScope(credential)
 
     const identity = credentialIdentity(credential)
     const known = lastIdentities.get(runtime.variant.id)
@@ -1389,6 +1442,11 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   for (const runtime of runtimes) runtime.reconcile = () => syncVariant(runtime)
+  const toolkitHost = new ToolkitHostManager(ctx, runtimes.map(runtime => runtime.toolkit))
+  ctx.effect(() => () => {
+    toolkitHost.dispose()
+    for (const runtime of runtimes) { runtime.toolkit.dispose(); runtime.availability.clear() }
+  })
   void Promise.all(runtimes.map(async runtime => startVariant(ctx, runtime))).then(() => {
     if (stopped) return
     // The host bundle is live: write a heartbeat so the status CLI can report

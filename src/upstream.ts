@@ -1,4 +1,7 @@
-import { mergeDesktopContextWindows, readDesktopContextProduct } from './desktop-context.ts'
+import { mergeDesktopContextWindows, readDesktopContextSnapshot } from './desktop-context.ts'
+import { parseRetryAfter } from './availability.ts'
+import { normalizePromotionDefinitions, type NormalizedPromotionDefinition, type PromotionProvenance } from './promotions.ts'
+import type { MediaModel } from './media-client.ts'
 /**
  * WorkBuddy (CodeBuddy / copilot.tencent.com) upstream client: chat streaming,
  * token refresh, model catalog, and credit balance. The wire behavior is
@@ -33,6 +36,8 @@ export type UpstreamErrorKind =
 
 /** One CLI-usable model as the upstream catalog describes it. */
 export interface WorkBuddyUpstreamModel {
+  promotionDefinitions?: readonly NormalizedPromotionDefinition[]
+  promotionProvenance?: PromotionProvenance
   id: string
   name: string
   contextWindow: number
@@ -196,7 +201,7 @@ export interface WorkBuddyRefreshOutcome {
 /** Chat answer: either a live SSE response or a classified failure. */
 export type WorkBuddyChatResult =
   | { ok: true; response: Response }
-  | { ok: false; status: number; kind: UpstreamErrorKind; message: string }
+  | { ok: false; status: number; kind: UpstreamErrorKind; message: string; retryAt?: number }
 
 const CN_CHAT_BASE = 'https://copilot.tencent.com'
 const CN_BILLING_BASE = 'https://www.codebuddy.cn'
@@ -309,10 +314,14 @@ export function normalizeCredits(credits: string | undefined): string | undefine
   if (credits === undefined) return undefined
   const trimmed = credits.trim()
   if (trimmed === '') return undefined
-  // A string that is only the unit word (`credits`) carries no multiplier.
-  if (/^credits?$/iu.test(trimmed)) return undefined
-  const bare = trimmed.replace(/\s+credits?$/iu, '').trim()
-  return bare === '' ? undefined : bare
+  const lower = trimmed.toLowerCase()
+  const unitLength = lower.endsWith('credits') ? 7 : lower.endsWith('credit') ? 6 : 0
+  if (unitLength === 0) return trimmed
+  const prefix = trimmed.slice(0, -unitLength)
+  if (prefix === '') return undefined
+  // Strip only a separate unit word; scanning a whitespace regex from every
+  // position can otherwise take quadratic time on an untrusted catalog row.
+  return prefix.at(-1)!.trim() === '' ? prefix.trimEnd() : trimmed
 }
 
 /**
@@ -970,11 +979,13 @@ export class WorkBuddyUpstreamClient {
     // handed through unread; JSON is never a valid chat-completion stream.
     if (response.ok && !response.headers?.get('content-type')?.toLowerCase().includes('application/json')) return { ok: true, response }
     const text = (await response.text()).slice(0, ERROR_BODY_LIMIT)
+    const retryAt = parseRetryAfter(response.headers?.get('retry-after') ?? null)
     return {
       ok: false,
       status: response.status,
       kind: classifyUpstreamError(response.status, text),
       message: text,
+      ...(retryAt === undefined ? {} : { retryAt }),
     }
   }
 
@@ -1069,8 +1080,19 @@ export class WorkBuddyUpstreamClient {
     // The read is best-effort and separate: its failure costs the badges and
     // never the catalog.
     const promoBadges = international ? undefined : await this.fetchPromoBadges(credential, signal)
-    const parsed = parseModelCatalog(data, international, promoBadges)
-    const models = international ? parsed : mergeDesktopContextWindows(parsed, readDesktopContextProduct(credential.uid, credential.enterpriseId))
+    const desktop = international ? undefined : readDesktopContextSnapshot(credential.uid, credential.enterpriseId)
+    const fetchedAt = Date.now()
+    const cachedPromotions = isObject(desktop?.product) ? desktop.product['modelPromotions'] : undefined
+    const fromDesktop = !international && !Array.isArray(promoBadges?.promotions) && Array.isArray(cachedPromotions)
+    const promotionRaw = international ? data['modelPromotions'] : fromDesktop ? cachedPromotions : promoBadges?.promotions
+    const parsed = parseModelCatalog(data, international, promoBadges?.badges).map(model => {
+      const definitions = normalizePromotionDefinitions(promotionRaw, model.id)
+      const hasLabels = (model.billing?.badges?.length ?? 0) > 0
+      return definitions.length === 0 && !hasLabels ? model : { ...model, promotionDefinitions: definitions,
+        promotionProvenance: { source: international || fromDesktop ? 'product-config' as const : 'console-models' as const, fetchedAt: fromDesktop && desktop !== undefined ? desktop.fetchedAt : fetchedAt },
+      }
+    })
+    const models = international ? parsed : mergeDesktopContextWindows(parsed, desktop?.product)
     this.lastCatalog = {
       fetchedAtMs: Date.now(),
       source: international ? 'workbuddy-ai:app' : 'workbuddy:cli',
@@ -1096,7 +1118,7 @@ export class WorkBuddyUpstreamClient {
   private async fetchPromoBadges(
     credential: WorkBuddyCredential,
     signal?: AbortSignal,
-  ): Promise<ReadonlyMap<string, readonly string[]> | undefined> {
+  ): Promise<{ badges: ReadonlyMap<string, readonly string[]>; promotions?: unknown } | undefined> {
     try {
       const response = await fetch(`${chatBase(credential)}/console/enterprises/personal/models`, {
         headers: {
@@ -1126,10 +1148,38 @@ export class WorkBuddyUpstreamClient {
           : []
         if (tags.length > 0) badges.set(id, tags)
       }
-      return badges.size === 0 ? undefined : badges
+      return badges.size === 0 && !Array.isArray(data['modelPromotions']) ? undefined : { badges, promotions: data['modelPromotions'] }
     } catch {
       return undefined
     }
+  }
+
+  /** Full product model metadata for media, independent from the chat-agent filter. */
+  async fetchMediaModels(credential: WorkBuddyCredential, signal?: AbortSignal): Promise<MediaModel[]> {
+    const region = regionOf(credential.domain)
+    const identity = await this.resolveChatIdentity(region).catch(() => fallbackChatIdentity(region))
+    const base = region === 'global' ? GLOBAL_BASE : 'https://www.workbuddy.cn'
+    const response = await fetch(`${base}/v3/config`, { redirect: 'error', headers: {
+      Authorization: `Bearer ${credential.accessToken}`, Accept: 'application/json',
+      ...identityHeaders(credential), 'User-Agent': chatUserAgent(identity, region),
+      ...(region === 'global' ? { 'X-Requested-With': 'XMLHttpRequest', 'X-Product': 'SaaS' } : {}),
+    }, signal: signal === undefined ? AbortSignal.timeout(JSON_TIMEOUT_MS) : AbortSignal.any([signal, AbortSignal.timeout(JSON_TIMEOUT_MS)]) })
+    const envelope = await readEnvelope(response)
+    if (!response.ok || envelope.code !== 0) throw new Error('media-catalog-unavailable')
+    const data = isObject(envelope.data) ? envelope.data : envelope.document
+    return (Array.isArray(data['models']) ? data['models'] : []).slice(0, 512).flatMap(value => {
+      if (!isObject(value) || typeof value['id'] !== 'string' || value['id'].length > 256 || !Array.isArray(value['tags'])) return []
+      const tags = value['tags'].filter((tag): tag is string => typeof tag === 'string' && ['text-to-image', 'image-to-image', 'text-to-video', 'image-to-video'].includes(tag))
+      if (tags.length === 0) return []
+      const video = value['videoGeneration']
+      const videoGeneration: NonNullable<MediaModel['videoGeneration']> = {}
+      if (isObject(video)) {
+        for (const key of ['minSeconds', 'maxSeconds', 'defaultSeconds'] as const) if (typeof video[key] === 'number' && Number.isFinite(video[key]) && video[key] > 0) videoGeneration[key] = video[key]
+        if (Array.isArray(video['resolutions'])) videoGeneration.resolutions = video['resolutions'].filter((r): r is string => typeof r === 'string' && r.length < 32).slice(0, 16)
+        if (typeof video['defaultResolution'] === 'string' && video['defaultResolution'].length < 32) videoGeneration.defaultResolution = video['defaultResolution']
+      }
+      return [{ id: value['id'], tags, ...(Object.keys(videoGeneration).length === 0 ? {} : { videoGeneration }) }]
+    })
   }
 
   /**

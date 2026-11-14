@@ -7,6 +7,7 @@
 
 import { modelWithCurrentPromotion } from './upstream.ts'
 import type { WorkBuddyUpstreamModel } from './upstream.ts'
+import { promotionFacts } from './promotions.ts'
 
 /** One model entry the adapter exposes. */
 export type WorkBuddyModelInfo = WorkBuddyUpstreamModel
@@ -132,7 +133,17 @@ export class WorkBuddyCatalog {
   current(): readonly WorkBuddyModelInfo[] {
     if (!this.visible) return []
     return this.models.map(model => {
-      const current = modelWithCurrentPromotion(model)
+      let current = modelWithCurrentPromotion(model)
+      if (model.promotionProvenance !== undefined) {
+        const facts = promotionFacts(model, model.promotionProvenance)
+        if (facts.schedule !== 'not-declared' || facts.freshness !== 'fresh') {
+          const credits = facts.state === 'active' ? facts.effectiveCredits : undefined
+          current = { ...current, billing: { free: credits !== undefined && Number(credits.slice(1)) === 0,
+            ...(credits === undefined ? { rateUnknown: true as const } : { credits }),
+            ...(facts.state === 'active' && facts.label ? { badges: [facts.label] } : {}),
+          } }
+        }
+      }
       const chosen = this.contextWindows[current.id]
       if (chosen !== undefined && current.supportedContextWindows?.includes(chosen)) {
         return { ...current, defaultContextWindow: current.defaultContextWindow ?? current.contextWindow, contextWindow: chosen }

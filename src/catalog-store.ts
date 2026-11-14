@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname, join, resolve } from 'node:path'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import type { WorkBuddyUpstreamModel } from './upstream.ts'
+import { validSavedPromotionMetadata } from './promotions.ts'
 
 /** On-disk format this reader accepts; other versions are discarded. */
 const CATALOG_FORMAT_VERSION = 1
@@ -63,6 +64,7 @@ function isModel(value: unknown): value is WorkBuddyUpstreamModel {
     && typeof row['contextWindow'] === 'number' && Number.isFinite(row['contextWindow'])
     && typeof row['maxTokens'] === 'number' && Number.isFinite(row['maxTokens'])
     && typeof row['supportsImages'] === 'boolean'
+    && validSavedPromotionMetadata(row)
 }
 
 /** Whether a parsed value is a saved catalog this reader can trust. */

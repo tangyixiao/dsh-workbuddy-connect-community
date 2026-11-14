@@ -30,6 +30,41 @@ async function fixture() {
 }
 
 describe('explicit manual accounts', () => {
+  it.each(['selected-first', 'saved-first'] as const)('shares one refresh between selected chat and saved-member reads: %s', async order => {
+    const f = await fixture()
+    await writeFile(f.desktopPath, desktop('a', Date.now() - 60_000))
+    const saved = await f.store.saveCurrentAccount()
+    await f.store.selectAccount(saved.id)
+    const capture = await f.store.accountSnapshot()
+    let release!: (value: { accessToken: string; expiresInSec: number }) => void
+    let started!: () => void
+    const ready = new Promise<void>(done => { started = done })
+    const upstream = new Promise<{ accessToken: string; expiresInSec: number }>(done => { release = done })
+    f.refresh.mockImplementation(async () => { started(); return await upstream })
+    const first = order === 'selected-first' ? f.store.resolve() : f.store.resolveSavedAccount(saved.id, capture)
+    await ready
+    let entered!: () => void
+    const captured = new Promise<void>(done => { entered = done })
+    if (order === 'selected-first') {
+      const read = WorkBuddyAccountStore.prototype.saved
+      vi.spyOn(WorkBuddyAccountStore.prototype, 'saved').mockImplementationOnce(async function (this: WorkBuddyAccountStore, ...args) { const value = await read.apply(this, args); entered(); return value })
+    } else {
+      const read = WorkBuddyAccountStore.prototype.selection
+      vi.spyOn(WorkBuddyAccountStore.prototype, 'selection').mockImplementationOnce(async function (this: WorkBuddyAccountStore, ...args) { const value = await read.apply(this, args); entered(); return value })
+    }
+    const second = order === 'selected-first' ? f.store.resolveSavedAccount(saved.id, capture) : f.store.resolve()
+    const settled = Promise.allSettled([first, second])
+    await captured
+    await new Promise<void>(done => { setImmediate(done) })
+    release({ accessToken: 'one-refreshed-secret', expiresInSec: 3600 })
+    const results = await settled
+    expect(f.refresh).toHaveBeenCalledTimes(1)
+    expect(results.map(result => result.status)).toEqual(['fulfilled', 'fulfilled'])
+    for (const result of results) if (result.status === 'fulfilled') expect(result.value.accessToken).toBe('one-refreshed-secret')
+    expect((await f.store.current())?.accessToken).toBe('one-refreshed-secret')
+    await expect(readFile(f.ownPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('saves stable secret-free identities without opting in, and persists selection', async () => {
     const f = await fixture()
     const saved = await f.store.saveCurrentAccount()

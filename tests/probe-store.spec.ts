@@ -54,6 +54,29 @@ describe('fingerprintModel', () => {
 })
 
 describe('WorkBuddyProbeStore', () => {
+  it.each(['__proto__', 'constructor', 'toString'])('keeps special account keys isolated through reload and clear: %s', account => {
+    const { store, path } = tempStore()
+    const record = store.record('account-key', 'validating', ['high'], account)
+    store.set('special-account-model', record)
+    expect(Object.hasOwn(JSON.parse(readFileSync(path, 'utf8')).records, account)).toBe(true)
+    const reopened = new WorkBuddyProbeStore({ path, pluginVersion: '9.9.9' })
+    expect(reopened.get('special-account-model', 'account-key', account)).toEqual(record)
+    expect(Object.hasOwn(Object.prototype, 'special-account-model')).toBe(false)
+    expect(Object.hasOwn(Object, 'special-account-model')).toBe(false)
+    reopened.clear()
+    expect(reopened.get('special-account-model', 'account-key', account)).toBeUndefined()
+  })
+
+  it.each(['__proto__', 'constructor', 'toString'])('round-trips special model keys as own records: %s', modelId => {
+    const { store, path } = tempStore()
+    const record = store.record('special-key', 'validating', ['high'], ACCOUNT)
+    store.set(modelId, record)
+    expect(Object.hasOwn(JSON.parse(readFileSync(path, 'utf8')).records[ACCOUNT], modelId)).toBe(true)
+    const reopened = new WorkBuddyProbeStore({ path, pluginVersion: '9.9.9' })
+    expect(reopened.get(modelId, 'special-key', ACCOUNT)).toEqual(record)
+    expect(Object.hasOwn(Object.prototype, 'special-key')).toBe(false)
+  })
+
   it('round-trips a record through disk', () => {
     const { store, path } = tempStore()
     const fingerprint = fingerprintModel(HY3)

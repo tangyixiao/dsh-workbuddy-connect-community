@@ -16,6 +16,8 @@ import type { WorkBuddyModelInfo } from './catalog.ts'
 import { resolveDefaultEffort, resolveEfforts } from './efforts.ts'
 import type { WorkBuddyEffort, WorkBuddyRegion } from './upstream.ts'
 import type { WorkBuddyProbeRecord } from './probe-store.ts'
+import type { WorkBuddyAvailability } from './availability.ts'
+import { promotionFacts } from './promotions.ts'
 import { hostIsLoopback, originIsLoopback } from './loopback.ts'
 import { withWorkBuddyHostAuth } from './host-route-auth.ts'
 import { WORKBUDDY_STATUS_PATH } from './status-paths.ts'
@@ -32,6 +34,7 @@ export interface WorkBuddyStatusRouteOptions {
   models: () => readonly WorkBuddyModelInfo[]
   /** Reconcile manual selections before combining account and catalog facts. */
   beforeRead?: () => Promise<void>
+  availability?: (modelId: string) => WorkBuddyAvailability | undefined
   region?: WorkBuddyRegion
   observe?: (modelId: string) => WorkBuddyProbeRecord | undefined
   defaultEffort?: (modelId: string) => WorkBuddyEffort | undefined
@@ -137,6 +140,7 @@ export async function workBuddyWebStatus(
       const preferred = saved !== undefined && reasoning.efforts.includes(saved) ? saved : undefined
       const upstreamDefault = resolveDefaultEffort(model, reasoning.efforts)
       const effective = resolveDefaultEffort(model, reasoning.efforts, preferred)
+      const availability = deps.availability?.(model.id)
       // The largest window the upstream declares for this model, when it
       // declares alternatives; equal to `contextWindow` otherwise, and omitted
       // when the upstream said nothing.
@@ -146,6 +150,8 @@ export async function workBuddyWebStatus(
       return {
         id: model.id,
         name: model.name,
+        ...(availability === undefined ? {} : { availability }),
+        ...(model.promotionProvenance === undefined ? {} : { promotion: promotionFacts(model, model.promotionProvenance) }),
         ...model.billing?.free === true ? { free: true as const } : {},
         ...model.billing?.badges !== undefined && model.billing.badges.length > 0 ? { badges: model.billing.badges } : {},
         ...rate === undefined ? {} : { credits: rate },

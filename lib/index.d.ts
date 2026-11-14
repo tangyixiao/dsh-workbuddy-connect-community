@@ -19,31 +19,18 @@ import { PiAiAdapter, PiAiAdapterOptions } from "@deepseek-ai/dsh-llm-pi-ai";
 import { Context } from "@deepseek-ai/cordis";
 import { SettingsNamespace } from "@deepseek-ai/dsh-settings";
 import { AttachmentStore } from "@deepseek-ai/dsh-attachment";
-/**
- * Why no credential is usable, as a closed enum the browser half switches on.
- *
- * Deliberately separate from `reason`: `reason` is free text meant for a human
- * to read, so matching on it would break the moment the wording changes. This
- * is the machine-readable half, and the card uses it — never a substring of
- * `reason` — to decide whether the Agent assist block applies.
- */
-type WorkBuddySignedOutReasonCode =
-/** Nobody is signed in; nothing diagnosable beyond that. */
-'no-credential' |
-/** A credential for the *other* product was found in this variant's file. */
-'credential-region-mismatch' |
-/** An encrypted credential exists but could not be opened (wrong key, GCM failure, helper crash). */
-'encrypted-credential-unreadable' |
-/** A product on a supported platform: discovery ran to completion and found no usable candidate. */
-'electron-binary-not-found' |
-/** A product on a supported platform: discovery found more than one distinct usable app. */
-'electron-binary-ambiguous' |
-/** No auto-discovery for this product/platform and no explicit path configured. */
-'electron-binary-unavailable' |
-/** An explicit path (option or env) is set but missing or not executable. */
-'electron-path-invalid' |
-/** Discovery could not finish: tool missing, timeout, output overflow, unreadable plist. */
-'electron-discovery-incomplete';
+/** Mode tags and videoGeneration fields come from the official CodeBuddy Image/VideoService. */
+interface MediaModel {
+  id: string;
+  tags: readonly string[];
+  videoGeneration?: {
+    minSeconds?: number;
+    maxSeconds?: number;
+    defaultSeconds?: number;
+    resolutions?: readonly string[];
+    defaultResolution?: string;
+  };
+}
 /** Basename of the saved version under `$DSH_HOME`. */
 export declare const WORKBUDDY_APP_VERSION_FILENAME = ".workbuddy-ai-version.json";
 /** Where the version came from, for `doctor` output. */
@@ -273,6 +260,8 @@ type WorkBuddyRegion = 'cn' | 'global';
 type UpstreamErrorKind = 'hard_credit' | 'model_busy' | 'policy_reject' | 'channel_reject' | 'queue' | 'soft_rate' | 'session_dead' | 'not_found' | 'server' | 'client';
 /** One CLI-usable model as the upstream catalog describes it. */
 interface WorkBuddyUpstreamModel {
+  promotionDefinitions?: readonly NormalizedPromotionDefinition[];
+  promotionProvenance?: PromotionProvenance;
   id: string;
   name: string;
   contextWindow: number;
@@ -433,6 +422,7 @@ type WorkBuddyChatResult = {
   status: number;
   kind: UpstreamErrorKind;
   message: string;
+  retryAt?: number;
 };
 /**
  * Reduce an upstream credits string to its language-neutral display form.
@@ -559,6 +549,8 @@ export declare class WorkBuddyUpstreamClient {
    * simply ship without badges.
    */
   private fetchPromoBadges;
+  /** Full product model metadata for media, independent from the chat-agent filter. */
+  fetchMediaModels(credential: WorkBuddyCredential, signal?: AbortSignal): Promise<MediaModel[]>;
   /**
    * POST the billing endpoint for the aggregated remaining credit.
    *
@@ -702,6 +694,52 @@ export declare function modelWithCurrentPromotion(model: WorkBuddyUpstreamModel,
  */
 export declare function prepareCnChatBody(source: string): string;
 export declare function prepareInternationalChatBody(source: string): string;
+interface PromotionProvenance {
+  source: 'product-config' | 'console-models';
+  fetchedAt: number;
+}
+interface PromotionDailyWindow {
+  start: string;
+  end: string;
+}
+interface NormalizedPromotionDefinition {
+  enabled: boolean;
+  schedule: 'fixed' | 'daily' | 'unsupported';
+  validFrom?: number;
+  validUntil?: number;
+  timeZone?: string;
+  daily?: readonly PromotionDailyWindow[];
+  priority: number;
+  label: string;
+  discountedCredits?: string;
+  displayMode?: 'replace' | 'strikethrough';
+  factor?: number;
+}
+/**
+ * Why no credential is usable, as a closed enum the browser half switches on.
+ *
+ * Deliberately separate from `reason`: `reason` is free text meant for a human
+ * to read, so matching on it would break the moment the wording changes. This
+ * is the machine-readable half, and the card uses it — never a substring of
+ * `reason` — to decide whether the Agent assist block applies.
+ */
+type WorkBuddySignedOutReasonCode =
+/** Nobody is signed in; nothing diagnosable beyond that. */
+'no-credential' |
+/** A credential for the *other* product was found in this variant's file. */
+'credential-region-mismatch' |
+/** An encrypted credential exists but could not be opened (wrong key, GCM failure, helper crash). */
+'encrypted-credential-unreadable' |
+/** A product on a supported platform: discovery ran to completion and found no usable candidate. */
+'electron-binary-not-found' |
+/** A product on a supported platform: discovery found more than one distinct usable app. */
+'electron-binary-ambiguous' |
+/** No auto-discovery for this product/platform and no explicit path configured. */
+'electron-binary-unavailable' |
+/** An explicit path (option or env) is set but missing or not executable. */
+'electron-path-invalid' |
+/** Discovery could not finish: tool missing, timeout, output overflow, unreadable plist. */
+'electron-discovery-incomplete';
 /** One WorkBuddy product variant. */
 interface WorkBuddyVariant {
   /** Provider id registered with DSH, e.g. `workbuddy-ai`. */
@@ -1001,10 +1039,22 @@ interface SavedAccountSummary {
   region: WorkBuddyRegion;
   selected: boolean;
   expiresAtMs: number;
+  label?: string;
 }
 interface ManualAccountStatus {
+  revision: string;
   mode: 'follow-desktop' | 'saved-account';
   accounts: SavedAccountSummary[];
+}
+interface AccountSelection {
+  revision: string;
+  selectedId: string | null;
+}
+/** Internal capture only; the hash never appears in account-status output. */
+interface AccountSnapshot extends AccountSelection {
+  accountsRevision: string;
+  controlRevision: string;
+  credentialRevision?: string;
 }
 /** Normalized WorkBuddy credential, timestamps in epoch milliseconds. */
 interface WorkBuddyCredential {
@@ -1130,10 +1180,21 @@ export declare class WorkBuddyCredentialStore {
   /** Selection is re-read on every call so a CLI and running host share state. */
   private currentSnapshot;
   listAccounts(): Promise<ManualAccountStatus>;
+  /** Opaque account key for owner settings; never an access token or raw uid. */
+  accountId(credential: WorkBuddyCredential): string;
+  /** Internal request snapshot only. Do not serialize credentials or fingerprint fields. */
+  accountSnapshot(): Promise<AccountSnapshot & {
+    credential?: WorkBuddyCredential;
+  }>;
+  currentSavedAccount(id: string, captured: AccountSnapshot): Promise<WorkBuddyCredential>;
+  /** Refresh exactly one configured saved member without changing global selection. */
+  resolveSavedAccount(id: string, captured: AccountSnapshot): Promise<WorkBuddyCredential>;
   /** Save the effective account without selecting it or performing a refresh. */
-  saveCurrentAccount(): Promise<SavedAccountSummary>;
-  selectAccount(id: string): Promise<void>;
-  followDesktop(): Promise<void>;
+  saveCurrentAccount(expectedRevision?: string): Promise<SavedAccountSummary>;
+  selectAccount(id: string, expectedRevision?: string): Promise<void>;
+  followDesktop(expectedRevision?: string): Promise<void>;
+  renameAccount(id: string, label: string, expectedRevision?: string): Promise<void>;
+  removeAccount(id: string, expectedRevision?: string): Promise<void>;
   private currentDesktop;
   /**
    * The credential to send upstream: {@link current}, refreshed on demand.
@@ -1145,6 +1206,7 @@ export declare class WorkBuddyCredentialStore {
   /** Remove the plugin-owned copy; the desktop file is untouched. */
   logout(): Promise<void>;
   private needsRefresh;
+  private refreshSaved;
   private refreshNow;
   private saveOwn;
   /**
@@ -1408,6 +1470,14 @@ interface WorkBuddyShimOptions {
   logger?: ShimLogger;
   /** Real host adapters bind prepared settings to the resolved billing account. */
   requireAccountScope?: boolean;
+  /** Server-only passive outcome observation; never retries or changes this call. */
+  onOutcome?: (event: {
+    credential: WorkBuddyCredential;
+    model: string;
+    kind?: UpstreamErrorKind;
+    code?: number;
+    retryAt?: number;
+  }) => void;
   /** Receives only a completed upstream response's observed credit. */
   onCredit?: (responseId: string, credit: number) => void;
   /** Captures request account scope and an epoch shared with host reconciliation. */
@@ -1468,7 +1538,7 @@ interface WorkBuddyAdapterOptions {
   /** Current account's saved default. Validated against this call's offered set. */
   defaultEffort?: (modelId: string) => WorkBuddyEffort | undefined;
   /** Reconcile credentials/catalog before reading account-scoped preferences. */
-  prepareAccount?: () => Promise<string | undefined>;
+  prepareAccount?: (mode?: 'read' | 'request', model?: string) => Promise<string | undefined>;
 }
 /** What {@link createWorkBuddyAdapter} hands back. */
 interface WorkBuddyAdapter {

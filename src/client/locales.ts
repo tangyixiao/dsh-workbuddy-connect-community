@@ -1,6 +1,18 @@
 /** Plugin-card copy registered under the settings.workbuddy locale namespace. */
+import { toolkitEn, toolkitZh } from './toolkit-locales.ts'
 
 export const en = {
+  ...toolkitEn,
+  availabilityBusy: 'Last request: model busy',
+  availabilityQueue: 'Last request: queued',
+  availabilityQueueFull: 'Last request: queue full',
+  availabilityQueueLimit: 'Last request: queue limit reached',
+  observedAt: 'Observed {time}',
+  retryAt: 'Upstream retry time: {time}',
+  promotionObserved: 'Upstream activity · {state}',
+  promotionActive: 'active', promotionInactive: 'outside its time window', promotionExpired: 'ended', promotionUnknown: 'unverified',
+  promotionSource: 'Source {source}; updated {time}',
+  promotionProduct: 'product configuration', promotionConsole: 'model catalog',
   title: 'DSH WorkBuddy Connect (China)',
   intro: 'Use the models in the WorkBuddy desktop app (China edition) directly in DSH — zero configuration, ready out of the box.',
   titleAI: 'DSH WorkBuddy AI Connect (International)',
@@ -141,6 +153,17 @@ export const en = {
 export type WorkBuddySettingsKey = keyof typeof en
 
 export const zh: Record<WorkBuddySettingsKey, string> = {
+  ...toolkitZh,
+  availabilityBusy: '最近请求：模型繁忙',
+  availabilityQueue: '最近请求：正在排队',
+  availabilityQueueFull: '最近请求：队列已满',
+  availabilityQueueLimit: '最近请求：达到排队上限',
+  observedAt: '观测于 {time}',
+  retryAt: '上游建议重试时间：{time}',
+  promotionObserved: '上游活动 · {state}',
+  promotionActive: '生效中', promotionInactive: '不在生效时段', promotionExpired: '已结束', promotionUnknown: '尚未核实',
+  promotionSource: '来源：{source}；更新于 {time}',
+  promotionProduct: '产品配置', promotionConsole: '模型目录',
   title: 'DSH WorkBuddy Connect（国内版）',
   intro: '在 DSH 中直接使用 WorkBuddy 国内版桌面 App 包含的模型，开箱即用，无需额外配置。',
   titleAI: 'DSH WorkBuddy AI Connect（国际版）',
