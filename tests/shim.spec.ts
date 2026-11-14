@@ -160,6 +160,26 @@ async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: S
 }
 
 describe('WorkBuddy shim', () => {
+  it.each([new Error('C:\\private\\account.json Bearer arbitrary-private-credential'), 'C:\\private\\account.json Bearer arbitrary-private-credential'])('never exports a credential resolution exception (%s)', async failure => {
+    const harness = await startShim(() => { throw new Error('upstream must not run') })
+    vi.spyOn(harness.store, 'resolve').mockRejectedValueOnce(failure)
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', authorization: `Bearer ${harness.shim.token()}` }, body: '{"messages":[]}',
+    })
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: { type: 'not_signed_in', code: 'not_signed_in', message: 'WorkBuddy credentials are unavailable; sign in again' } })
+    expect(harness.upstreamBodies).toHaveLength(0)
+  })
+
+  it.each([new Error('C:\\private\\account.json Bearer arbitrary-private-credential'), 'C:\\private\\account.json Bearer arbitrary-private-credential'])('never exports an unexpected chat exception (%s)', async failure => {
+    const harness = await startShim(() => { throw failure })
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', authorization: `Bearer ${harness.shim.token()}` }, body: '{"messages":[]}',
+    })
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: { type: 'internal', code: 'internal', message: 'WorkBuddy request failed internally' } })
+  })
+
   it('lists the catalog on /v1/models', async () => {
     const harness = await startShim(() => ({ ok: false, status: 500, kind: 'server', message: 'unused' }))
     const response = await fetch(`${harness.shim.baseUrl()}/v1/models`, {

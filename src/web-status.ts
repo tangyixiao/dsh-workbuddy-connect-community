@@ -69,14 +69,6 @@ export interface WorkBuddyStatusRouteOptions {
   path?: string
 }
 
-/** Redact token-like content before it crosses to the browser. */
-function safeMessage(error: unknown): string {
-  return (error instanceof Error ? error.message : String(error))
-    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu, '[redacted token]')
-    .replace(/(\b(?:code|token|refresh_token|access_token)=)[^&\s]+/giu, '$1[redacted]')
-    .slice(0, 500)
-}
-
 function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body)
   res.writeHead(status, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) })
@@ -110,8 +102,7 @@ export async function workBuddyWebStatus(
     // path or point the plugin at the app. `reasonCode` rides along so the
     // card can branch on the cause without reading the prose.
     //
-    // This branch deliberately does not run `safeMessage`: the reason is
-    // produced by the store and is expected to be a short, path-only
+    // This reason is produced by the store and is expected to be a short, path-only
     // diagnosis, so any new failure path added here must keep credentials,
     // payloads and subprocess output out of its own message.
     return {
@@ -227,8 +218,10 @@ export async function workBuddyWebStatus(
       // upstream actually reported them.
       return { ...probed, credits }
     }
-  } catch (error: unknown) {
-    return { ...probed, creditsError: safeMessage(error) }
+  } catch {
+    // Exceptions may contain arbitrary credential formats or local paths;
+    // pattern-based redaction cannot make their free text safe to export.
+    return { ...probed, creditsError: 'credits-unavailable' }
   }
   return probed
 }
@@ -248,8 +241,8 @@ export function workBuddyStatusHandler(
     }
     try {
       json(res, 200, await workBuddyWebStatus(deps))
-    } catch (error: unknown) {
-      json(res, 500, { error: safeMessage(error) })
+    } catch {
+      json(res, 500, { error: 'status-unavailable' })
     }
   }
 }
