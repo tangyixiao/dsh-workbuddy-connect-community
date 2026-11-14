@@ -476,6 +476,9 @@ export class WorkBuddyCredentialStore {
       )
     }
     if (!this.needsRefresh(credential)) return credential
+    // A selected saved account and an explicit member read must share the
+    // same credential-revision single-flight and refresh-token CAS.
+    if (selection.selectedId !== null) return await this.resolveSavedAccount(selection.selectedId, selection)
     const key = JSON.stringify([selection.revision, selection.selectedId, credential.uid, credential.enterpriseId, credential.domain])
     let pending = this.inflight.get(key)
     if (pending === undefined) {

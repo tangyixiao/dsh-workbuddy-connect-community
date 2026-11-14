@@ -115,6 +115,25 @@ describe('account and toolkit panel', () => {
     expect(view!.root.findAllByProps({ 'data-toolkit-member': true }).every(node => !node.props.checked)).toBe(true)
   })
 
+  it.each([true, false])('removes invisible deleted accounts when editing automation membership (checked=%s)', async checked => {
+    state.accounts.accounts = state.accounts.accounts.filter(account => account.id !== b)
+    state.settings.automation.members = checked ? [b] : [a, b]
+    request.mockImplementation(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        const members = JSON.parse(String(init.body)).patch.automation.members as string[]
+        if (members.some(id => !state.accounts.accounts.some(account => account.id === id))) return { ok: false, status: 400, json: async () => ({ error: 'account-not-found' }) }
+        state.settings.automation.members = members; state.settings.revision = 'fresh-settings'
+        return { ok: true, status: 200, json: async () => ({ state: 'updated' }) }
+      }
+      return { ok: true, status: 200, json: async () => structuredClone(state) }
+    })
+    await mount()
+    await act(async () => { view!.root.findByProps({ 'data-toolkit-member': true }).props.onChange({ currentTarget: { checked } }) })
+    const posts = request.mock.calls.filter(call => call[1]?.method === 'POST').map(call => JSON.parse(call[1].body))
+    expect(posts).toEqual([{ action: 'update-settings', revision: 'settings-revision', account: a, patch: { automation: { members: checked ? [a] : [] } } }])
+    expect(view!.root.findByProps({ 'data-toolkit-member': true }).props.checked).toBe(checked)
+  })
+
   it('refuses malformed or cross-product documents instead of rendering writable controls', async () => {
     request.mockImplementation(async () => ({ ok: true, json: async () => ({ ...state, provider: 'workbuddy-ai' }) }))
     await mount()

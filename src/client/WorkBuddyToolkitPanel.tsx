@@ -158,6 +158,12 @@ export function WorkBuddyToolkitPanel({ provider, t }: WorkBuddyToolkitPanelProp
   const mutate = (action: ToolkitAction): void => { void request(action) }
   const settings = state?.settings
   const save = (patch: ToolkitSettingsPatch): void => { if (settings !== undefined && state?.account !== undefined) mutate({ action: 'update-settings', revision: settings.revision, account: state.account, patch }) }
+  const setMember = (id: string, checked: boolean): void => {
+    if (settings === undefined || state === undefined) return
+    const available = new Set(state.accounts.accounts.map(account => account.id))
+    const members = settings.automation.members.filter(member => member !== id && available.has(member))
+    save({ automation: { members: checked ? [...members, id] : members } })
+  }
   const controlled = settings !== undefined && state?.account !== undefined
   const hasMembers = state?.accounts.accounts.some(account => settings?.automation.members.includes(account.id)) === true
   const servingIndex = state?.accounts.accounts.findIndex(account => account.id === state.decision?.servingAccount) ?? -1
@@ -194,7 +200,7 @@ export function WorkBuddyToolkitPanel({ provider, t }: WorkBuddyToolkitPanelProp
           <label style={label}><input type="checkbox" data-toolkit-automation="rotate" checked={settings?.automation.rotate === true} disabled={pending || !controlled || (!settings?.automation.rotate && !hasMembers)} onChange={event => { save({ automation: { rotate: event.currentTarget.checked } }) }} /><span>{t('toolkitRotate')}</span></label><p style={small}>{t('toolkitRotateHint')}</p>
           <label style={label}><input type="checkbox" data-toolkit-automation="checkin" checked={settings?.automation.checkin === true} disabled={pending || !controlled || (!settings?.automation.checkin && (!state.capabilities.checkin || !hasMembers))} onChange={event => { save({ automation: { checkin: event.currentTarget.checked } }) }} /><span>{t('toolkitAutoCheckin')}{state.capabilities.checkin ? null : <small style={{ ...small, display: 'block' }}>{t('toolkitUnavailable')}</small>}</span></label><p style={small}>{t('toolkitAutoCheckinHint')}</p>
           <span style={legend}>{t('toolkitMembers')}</span><p style={small}>{t('toolkitMembersHint')}</p>
-          {state.accounts.accounts.map((account, index) => <label style={label} key={account.id}><input type="checkbox" data-toolkit-member checked={settings?.automation.members.includes(account.id) === true} disabled={pending || !controlled} onChange={event => { if (settings !== undefined) save({ automation: { members: event.currentTarget.checked ? [...settings.automation.members.filter(id => id !== account.id), account.id] : settings.automation.members.filter(id => id !== account.id) } }) }} /><span>{account.label?.trim() || t('toolkitAccountName', { number: index + 1 })}</span></label>)}
+          {state.accounts.accounts.map((account, index) => <label style={label} key={account.id}><input type="checkbox" data-toolkit-member checked={settings?.automation.members.includes(account.id) === true} disabled={pending || !controlled} onChange={event => { setMember(account.id, event.currentTarget.checked) }} /><span>{account.label?.trim() || t('toolkitAccountName', { number: index + 1 })}</span></label>)}
           {hasMembers ? null : <p style={small}>{t('toolkitChooseMembers')}</p>}
           <label style={{ ...row, fontSize: 13, color: 'var(--dsw-alias-label-primary)' }}>{t('toolkitRotationLimit')}<select style={{ ...input, width: 'auto' }} value={settings?.automation.maxSwitches ?? 1} disabled={pending || !controlled} onChange={event => { save({ automation: { maxSwitches: Number(event.currentTarget.value) } }) }}>{[1, 2, 3].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
           {state.decision?.servingAccount === undefined ? null : <p style={small} role="status" data-toolkit-serving-account>{t('toolkitServingAccount', { name: servingName })}</p>}

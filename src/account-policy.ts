@@ -4,6 +4,8 @@ import { WorkBuddyCredentialStore, type WorkBuddyAuthStatus, type WorkBuddyCrede
 import { WorkBuddyAccountError, type AccountSnapshot } from './account-store.ts'
 import { regionOf, type WorkBuddyRegion } from './upstream.ts'
 import { defaultToolkitSettings, type ToolkitSettings } from './toolkit-settings.ts'
+import { reasonCodeOf } from './desktop-credential-protection.ts'
+import { isWorkBuddySignedOutReasonCode } from './status-paths.ts'
 
 export interface WorkBuddyAccountPolicyOptions {
   base: WorkBuddyCredentialStore
@@ -156,7 +158,10 @@ export class WorkBuddyAccountPolicy {
         ...credential.domain === '' ? {} : { domain: credential.domain },
         ...credential.refreshExpiresAtMs === undefined ? {} : { refreshExpiresAtMs: credential.refreshExpiresAtMs },
       }
-    } catch { return { state: 'signed-out' } }
+    } catch (error: unknown) {
+      const reasonCode = reasonCodeOf(error)
+      return { state: 'signed-out', ...isWorkBuddySignedOutReasonCode(reasonCode) ? { reasonCode } : {} }
+    }
   }
   /** Retains base controls/diagnostics; only the effective credential view is overridden. */
   credentialView(): WorkBuddyCredentialStore {

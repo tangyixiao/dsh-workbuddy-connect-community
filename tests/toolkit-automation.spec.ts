@@ -1,11 +1,13 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WorkBuddyCredentialStore, type WorkBuddyCredential } from '../src/auth.ts'
 import { CN_VARIANT } from '../src/variants.ts'
 import { ToolkitSettingsStore } from '../src/toolkit-settings.ts'
 import { WorkBuddyAccountPolicy } from '../src/account-policy.ts'
 import { CheckinAdmissionStore } from '../src/checkin-admission.ts'
+import { WorkBuddyElectronPathError } from '../src/desktop-credential-protection.ts'
+import { workBuddyWebStatus } from '../src/web-status.ts'
 
 const owned: string[] = []
 afterEach(async () => { await Promise.all(owned.splice(0).map(path => rm(path, { recursive: true, force: true }))) })
@@ -164,6 +166,27 @@ describe('scoped saved accounts and owner control revisions', () => {
 })
 
 describe('next independent request account policy', () => {
+  it.each(['electron-binary-not-found', 'electron-binary-ambiguous'] as const)('preserves recognized discovery recovery codes without exporting error text: %s', async code => {
+    const f = await accounts()
+    const discovery = vi.spyOn(f.base, 'accountSnapshot').mockRejectedValue(new WorkBuddyElectronPathError(code, 'private-path-and-token'))
+    try {
+      const policy = new WorkBuddyAccountPolicy({ base: f.base, region: 'cn', settings: () => new ToolkitSettingsStore(join(f.dir, 'settings.json'), 'cn').get(f.a.id) })
+      const fetchCredits = vi.fn()
+      const status = await workBuddyWebStatus({ store: policy.credentialView(), client: { fetchCredits }, models: () => [] })
+      expect(status).toEqual({ status: 'signed-out', reasonCode: code })
+      expect(fetchCredits).not.toHaveBeenCalled()
+    } finally { discovery.mockRestore() }
+  })
+
+  it.each([new Error('private-path-and-token'), { reasonCode: 'electron-binary-not-found', message: 'private-path-and-token' }])('does not export arbitrary errors or accept unrecognized diagnostic carriers', async failure => {
+    const f = await accounts()
+    const discovery = vi.spyOn(f.base, 'accountSnapshot').mockRejectedValue(failure)
+    try {
+      const policy = new WorkBuddyAccountPolicy({ base: f.base, region: 'cn', settings: () => new ToolkitSettingsStore(join(f.dir, 'settings.json'), 'cn').get(f.a.id) })
+      expect(await policy.credentialView().status()).toEqual({ state: 'signed-out' })
+    } finally { discovery.mockRestore() }
+  })
+
   it('stays off by default and ignores non-credit failures without refreshing or switching', async () => {
     const f = await accounts()
     const store = new ToolkitSettingsStore(join(f.dir, 'settings.json'), 'cn')
