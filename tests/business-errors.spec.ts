@@ -42,13 +42,17 @@ describe('structured business error contract', () => {
   })
 
   it('reads business rejection from JSON HTTP 200 without consuming SSE success', async () => {
-    const client = new WorkBuddyUpstreamClient()
+    // This wire contract must not discover a real Desktop installation or run
+    // platform helpers before reaching its synthetic fetch (slow on Windows CI).
+    const identity = vi.fn(async () => ({ clientVersion: '5.5.6' }))
+    const client = new WorkBuddyUpstreamClient({ resolveChatIdentity: identity })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ code: '14003', msg: 'busy' }), { headers: { 'Content-Type': 'application/json' } })))
     expect(await client.chatStream(credential, '{}')).toMatchObject({ ok: false, status: 200, kind: 'model_busy' })
     vi.stubGlobal('fetch', vi.fn(async () => new Response('data: {"code":14003}\n\n', { headers: { 'Content-Type': 'text/event-stream' } })))
     const result = await client.chatStream(credential, '{}')
     expect(result.ok).toBe(true)
     if (result.ok) expect(await result.response.text()).toContain('14003')
+    expect(identity).toHaveBeenCalledTimes(2)
   })
 })
 
