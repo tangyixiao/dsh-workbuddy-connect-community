@@ -86,6 +86,20 @@ async function postRaw(
 }
 
 describe('probe control route', () => {
+  it.each([new Error('C:\\private\\account.json Bearer private-credential'), 'C:\\private\\account.json Bearer private-credential'])('keeps callback exception text out of every control response (%s)', async failure => {
+    const fail = (): never => { throw failure }
+    const { origin, key } = await mount({ probe: fail, clear: fail, refresh: fail, setMaximumContextWindow: fail, setModelContextWindow: fail, setModelDefaultEffort: fail, setModelVisibility: fail })
+    for (const body of [
+      { action: 'probe', model: 'hy3' }, { action: 'clear' }, { action: 'refresh' },
+      { action: 'set-maximum-context-window', enabled: true },
+      { action: 'set-model-context-window', model: 'hy3', window: 1000, account: 'a' },
+      { action: 'set-model-default-effort', model: 'hy3', effort: 'high', account: 'a' },
+      { action: 'set-model-visibility', model: 'hy3', visible: false, account: 'a' },
+    ]) {
+      expect(await post(origin, body, { 'X-WorkBuddy-Probe-Key': key })).toEqual({ status: 500, body: { error: 'control-action-failed' } })
+    }
+  })
+
   it('guards reasoning defaults, rejects malformed choices and supports reset', async () => {
     const received: unknown[] = []
     const { origin, key } = await mount({ setModelDefaultEffort: async (...args) => { received.push(args); return { state: 'updated' } } })
