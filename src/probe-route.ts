@@ -230,8 +230,8 @@ export function workBuddyProbeHandler(
         return
       }
       json(res, 200, await deps.probe(action.model as string))
-    } catch (error: unknown) {
-      json(res, 500, { error: error instanceof Error ? error.message : String(error) })
+    } catch {
+      json(res, 500, { error: 'control-action-failed' })
     }
   }
 }
