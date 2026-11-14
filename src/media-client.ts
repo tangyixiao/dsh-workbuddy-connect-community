@@ -133,7 +133,7 @@ export class WorkBuddyMediaClient {
     toolkitThrowIfCancelled(signal)
     const c = access.credential
     const base = access.endpoint ?? (regionOf(c.domain) === 'global' ? 'https://www.workbuddy.ai' : 'https://www.workbuddy.cn')
-    if (regionOf(c.domain) === 'global' ? base !== 'https://www.workbuddy.ai' : !['https://www.workbuddy.cn', 'https://copilot.tencent.com'].includes(base)) throw new ToolkitToolError('media-region-mismatch')
+    if (regionOf(c.domain) === 'global' ? base !== 'https://www.workbuddy.ai' : base !== 'https://www.workbuddy.cn' && base !== 'https://copilot.tencent.com') throw new ToolkitToolError('media-region-mismatch')
     const timeout = AbortSignal.timeout(this.timeoutMs)
     const active = AbortSignal.any([signal, timeout])
     let response: Response

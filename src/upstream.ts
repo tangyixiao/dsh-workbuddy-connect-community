@@ -314,10 +314,14 @@ export function normalizeCredits(credits: string | undefined): string | undefine
   if (credits === undefined) return undefined
   const trimmed = credits.trim()
   if (trimmed === '') return undefined
-  // A string that is only the unit word (`credits`) carries no multiplier.
-  if (/^credits?$/iu.test(trimmed)) return undefined
-  const bare = trimmed.replace(/\s+credits?$/iu, '').trim()
-  return bare === '' ? undefined : bare
+  const lower = trimmed.toLowerCase()
+  const unitLength = lower.endsWith('credits') ? 7 : lower.endsWith('credit') ? 6 : 0
+  if (unitLength === 0) return trimmed
+  const prefix = trimmed.slice(0, -unitLength)
+  if (prefix === '') return undefined
+  // Strip only a separate unit word; scanning a whitespace regex from every
+  // position can otherwise take quadratic time on an untrusted catalog row.
+  return prefix.at(-1)!.trim() === '' ? prefix.trimEnd() : trimmed
 }
 
 /**

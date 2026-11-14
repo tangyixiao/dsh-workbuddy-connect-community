@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { WorkBuddyMediaClient, validateMediaRequest } from '../src/media-client.ts'
+import { WorkBuddyMediaClient, validateMediaRequest, type MediaEndpoint } from '../src/media-client.ts'
 
 describe('official media transport', () => {
+  it.each(['https://www.workbuddy.cn.attacker.invalid', 'https://attacker.invalid/https://www.workbuddy.cn', 'https://www.workbuddy.ai@attacker.invalid', 'https://www.workbuddy.ai'])('rejects a foreign or deceptive endpoint before sending credentials: %s', endpoint => {
+    let calls = 0
+    const client = new WorkBuddyMediaClient({ fetch: async () => { calls++; throw new Error('must not send') } })
+    const access = { endpoint: endpoint as MediaEndpoint, credential: { accessToken: 'private', refreshToken: '', expiresAtMs: 1, domain: '', uid: 'a', source: 'desktop' as const }, model: { id: 'hunyuan-image-v3.0', tags: ['text-to-image'] } }
+    return expect(client.submit(access, validateMediaRequest({ kind: 'image', mode: 'text', prompt: 'x' }), new AbortController().signal)).rejects.toMatchObject({ code: 'media-region-mismatch' }).then(() => { expect(calls).toBe(0) })
+  })
+
   it('uses the installed CodeBuddy video submit and one immediate query contracts', async () => {
     const requests: Array<{ url: string, body: unknown }> = []
     const client = new WorkBuddyMediaClient({ fetch: async (url, init) => {

@@ -5,9 +5,17 @@ import { CheckinAdmissionStore } from '../src/checkin-admission.ts'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { workbuddySavedAccountId } from '../src/account-store.ts'
+import type { MediaEndpoint } from '../src/media-client.ts'
 
 const credential = { accessToken: 'never-print', refreshToken: '', expiresAtMs: 1, domain: '', uid: 'personal-a', source: 'desktop' as const }
 describe('official check-in transport', () => {
+  it.each(['https://www.workbuddy.cn.attacker.invalid', 'https://attacker.invalid/https://www.workbuddy.cn', 'https://www.workbuddy.ai@attacker.invalid', 'https://www.workbuddy.ai'])('rejects a foreign or deceptive check-in endpoint before sending credentials: %s', async endpoint => {
+    let calls = 0
+    const client = new WorkBuddyCheckinClient({ fetch: async () => { calls++; throw new Error('must not send') } })
+    await expect(client.query({ credential, endpoint: endpoint as MediaEndpoint }, new AbortController().signal)).rejects.toMatchObject({ code: 'checkin-region-mismatch' })
+    expect(calls).toBe(0)
+  })
+
   it('queries the actual DesktopAccountRepo route and exposes only selected status plus HTTP UTC day', async () => {
     const requests: unknown[] = []
     const client = new WorkBuddyCheckinClient({ fetch: async (url, init) => {

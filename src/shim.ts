@@ -162,7 +162,7 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
   function bearerOk(req: IncomingMessage): boolean {
     const header = req.headers.authorization
     if (typeof header !== 'string') return false
-    const match = /^Bearer\s+(.+)$/i.exec(header.trim())
+    const match = /^Bearer\s+(\S+)$/i.exec(header.trim())
     if (match === null) return false
     const presented = match[1] as string
     const expected = SHARED_SECRET

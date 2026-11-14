@@ -193,10 +193,10 @@ export class WorkBuddyProbeStore {
   private load(): Record<string, Record<string, WorkBuddyProbeRecord>> {
     if (this.records === undefined) {
       const document = readDocument(this.path)
-      const records: Record<string, Record<string, WorkBuddyProbeRecord>> = {}
+      const records: Record<string, Record<string, WorkBuddyProbeRecord>> = Object.create(null)
       for (const [account, bucket] of Object.entries(document?.records ?? {})) {
         if (typeof bucket !== 'object' || bucket === null || Array.isArray(bucket)) continue
-        const parsed: Record<string, WorkBuddyProbeRecord> = {}
+        const parsed: Record<string, WorkBuddyProbeRecord> = Object.create(null)
         for (const [modelId, record] of Object.entries(bucket)) {
           if (isRecord(record)) parsed[modelId] = record
         }
@@ -234,7 +234,11 @@ export class WorkBuddyProbeStore {
    */
   set(modelId: string, record: WorkBuddyProbeRecord): void {
     const records = this.load()
-    const bucket = records[record.account] ?? (records[record.account] = {})
+    let bucket = records[record.account]
+    if (bucket === undefined) {
+      bucket = Object.create(null) as Record<string, WorkBuddyProbeRecord>
+      Object.defineProperty(records, record.account, { value: bucket, enumerable: true, writable: true, configurable: true })
+    }
     const existing = bucket[modelId]
     if (
       record.validation === 'unknown'
@@ -244,13 +248,13 @@ export class WorkBuddyProbeStore {
     ) {
       return
     }
-    bucket[modelId] = record
+    Object.defineProperty(bucket, modelId, { value: record, enumerable: true, writable: true, configurable: true })
     this.persist()
   }
 
   /** Drop every record of every account; used by the card's explicit "clear" action. */
   clear(): void {
-    this.records = {}
+    this.records = Object.create(null)
     this.persist()
   }
 

@@ -49,7 +49,7 @@ export class WorkBuddyCheckinClient {
     const c = access.credential
     const global = regionOf(c.domain) === 'global'
     const endpoint = access.endpoint ?? (global ? 'https://www.workbuddy.ai' : 'https://www.workbuddy.cn')
-    if (global ? endpoint !== 'https://www.workbuddy.ai' : !['https://www.workbuddy.cn', 'https://copilot.tencent.com'].includes(endpoint)) throw new ToolkitToolError('checkin-region-mismatch')
+    if (global ? endpoint !== 'https://www.workbuddy.ai' : endpoint !== 'https://www.workbuddy.cn' && endpoint !== 'https://copilot.tencent.com') throw new ToolkitToolError('checkin-region-mismatch')
     const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(this.timeoutMs)])
     try {
       const response = await abortable(this.fetcher(`${endpoint}${path}`, { method: 'POST', redirect: 'error', signal: requestSignal, headers: {

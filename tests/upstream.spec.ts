@@ -609,6 +609,13 @@ describe('WorkBuddyUpstreamClient.fetchCredits (CN enterprise)', () => {
 })
 
 describe('normalizeCredits', () => {
+  it('preserves suffix boundaries and handles long whitespace without a backtracking match', () => {
+    expect(normalizeCredits('x0.79' + ' '.repeat(100_000) + 'CREDITS')).toBe('x0.79')
+    expect(normalizeCredits('x0.79' + ' '.repeat(100_000) + 'other')).toBe('x0.79' + ' '.repeat(100_000) + 'other')
+    expect(normalizeCredits('x0.79credits')).toBe('x0.79credits')
+    expect(normalizeCredits('x0.79\u00a0CrEdIt')).toBe('x0.79')
+  })
+
   it('keeps a bare multiplier untouched', () => {
     expect(normalizeCredits('x0.79')).toBe('x0.79')
     expect(normalizeCredits('x0.00')).toBe('x0.00')
