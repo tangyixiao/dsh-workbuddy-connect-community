@@ -160,6 +160,26 @@ async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: S
 }
 
 describe('WorkBuddy shim', () => {
+  it.each([new Error('C:\\private\\account.json Bearer arbitrary-private-credential'), 'C:\\private\\account.json Bearer arbitrary-private-credential'])('never exports a credential resolution exception (%s)', async failure => {
+    const harness = await startShim(() => { throw new Error('upstream must not run') })
+    vi.spyOn(harness.store, 'resolve').mockRejectedValueOnce(failure)
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', authorization: `Bearer ${harness.shim.token()}` }, body: '{"messages":[]}',
+    })
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: { type: 'not_signed_in', code: 'not_signed_in', message: 'WorkBuddy credentials are unavailable; sign in again' } })
+    expect(harness.upstreamBodies).toHaveLength(0)
+  })
+
+  it.each([new Error('C:\\private\\account.json Bearer arbitrary-private-credential'), 'C:\\private\\account.json Bearer arbitrary-private-credential'])('never exports an unexpected chat exception (%s)', async failure => {
+    const harness = await startShim(() => { throw failure })
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', authorization: `Bearer ${harness.shim.token()}` }, body: '{"messages":[]}',
+    })
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: { type: 'internal', code: 'internal', message: 'WorkBuddy request failed internally' } })
+  })
+
   it('lists the catalog on /v1/models', async () => {
     const harness = await startShim(() => ({ ok: false, status: 500, kind: 'server', message: 'unused' }))
     const response = await fetch(`${harness.shim.baseUrl()}/v1/models`, {
@@ -773,12 +793,7 @@ describe('error text policy against the host AUTH heuristic (PR #58)', () => {
     expect(HOST_AUTH_HEURISTIC.test(body.error.message)).toBe(true)
   })
 
-  it('keeps an extracted display text that itself names 403, accepting the residue', async () => {
-    // Known residue, pinned on purpose: when the upstream display text
-    // itself contains the number ("HTTP 403: 受限"), the real text wins over
-    // hiding the digits, and the host heuristic will still read it as AUTH.
-    // Rewriting the digits would destroy genuine information; the fix for
-    // this class belongs in the host's classifier, not here.
+  it('preserves readable 403 detail without triggering the host AUTH heuristic', async () => {
     const text = await shimErrorBody(() => ({
       ok: false,
       status: 403,
@@ -786,8 +801,8 @@ describe('error text policy against the host AUTH heuristic (PR #58)', () => {
       message: JSON.stringify({ code: 11140, msg: 'request illegal', displayMsg: { zh: 'HTTP 403：访问受限，请稍后重试' } }),
     }))
     const body = JSON.parse(text) as { error: { message: string } }
-    expect(body.error.message).toBe('workbuddy upstream client: HTTP 403：访问受限，请稍后重试')
-    expect(HOST_AUTH_HEURISTIC.test(body.error.message)).toBe(true)
+    expect(body.error.message).toBe('workbuddy upstream client: HTTP ４０３：访问受限，请稍后重试')
+    expect(HOST_AUTH_HEURISTIC.test(body.error.message)).toBe(false)
   })
 
   it('hides the bare 403 from a markerless 403 business error even in raw fallback', async () => {

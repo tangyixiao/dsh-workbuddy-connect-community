@@ -633,7 +633,7 @@ function ModelOfferRow({ model, t }: {
  * When the upstream declares multiple windows, the account can choose a tier.
  * The chosen tier is the context budget DSH receives for that model.
  */
-function ContextTable({ models, t, useMaximumContextWindow, contextPreferenceDisabled, onUseMaximumContextWindow, visibility, visibilityControlsDisabled, visibilityToggling, onVisibilityToggle, onContextWindow }: {
+function ContextTable({ models, t, useMaximumContextWindow, contextPreferenceDisabled, onUseMaximumContextWindow, visibility, visibilityControlsDisabled, visibilityToggling, onVisibilityToggle, onContextWindow, onDefaultEffort }: {
   models: readonly WorkBuddyWebModelBadge[] | undefined
   t: WorkBuddyPluginCardInjected['t']
   useMaximumContextWindow?: boolean
@@ -648,6 +648,7 @@ function ContextTable({ models, t, useMaximumContextWindow, contextPreferenceDis
   visibilityToggling: ReadonlySet<string>
   onVisibilityToggle?: (modelId: string, visible: boolean) => void
   onContextWindow?: (modelId: string, window: number) => void
+  onDefaultEffort?: (modelId: string, effort: string | undefined) => void
 }): React.ReactNode {
   const rows = [...(models ?? [])].sort((a, b) => {
     // Largest first, the ordering this table has always used; rows without a
@@ -727,6 +728,20 @@ function ContextTable({ models, t, useMaximumContextWindow, contextPreferenceDis
                 </span>
               </span>
               <span style={modelOfferStyle}>
+                {visibility !== undefined && onDefaultEffort !== undefined && (model.availableEfforts?.length ?? 0) > 0 ? (
+                  <span style={modelRateStyle}>
+                    <span>{t('modelDefaultEffort')}</span>
+                    <select
+                      aria-label={`${model.name} ${t('modelDefaultEffort')}`}
+                      value={model.savedDefaultEffort ?? ''}
+                      disabled={contextPreferenceDisabled}
+                      onChange={event => onDefaultEffort(model.id, event.currentTarget.value || undefined)}
+                    >
+                      <option value="">{t('modelDefaultAutomatic')}{model.upstreamDefaultEffort === undefined ? '' : ` (${model.upstreamDefaultEffort})`}</option>
+                      {model.availableEfforts!.map(effort => <option key={effort} value={effort}>{effort}</option>)}
+                    </select>
+                  </span>
+                ) : null}
                 {visibility !== undefined && onContextWindow !== undefined && (model.supportedContextWindows?.length ?? 0) > 1 && capacity !== undefined ? (
                   <select aria-label={`${model.name} ${t('contextHeading')}`} value={capacity} disabled={contextPreferenceDisabled} onChange={event => onContextWindow(model.id, Number(event.currentTarget.value))}>
                     {!model.supportedContextWindows!.includes(capacity) ? <option value={capacity}>{formatTokens(capacity)}</option> : null}
@@ -1134,7 +1149,7 @@ export function WorkBuddyPluginCard({ t, variant = CN_CARD_VARIANT }: WorkBuddyP
    * the host never accepts a prompt, a sentinel, or a model outside its own
    * catalog from here.
    */
-  const control = useCallback(async (action: { action: 'probe'; model: string } | { action: 'clear' } | { action: 'set-maximum-context-window'; enabled: boolean } | { action: 'set-model-visibility'; model: string; visible: boolean; account: string } | { action: 'set-model-context-window'; model: string; window: number; account: string }): Promise<void> => {
+  const control = useCallback(async (action: { action: 'probe'; model: string } | { action: 'clear' } | { action: 'set-maximum-context-window'; enabled: boolean } | { action: 'set-model-visibility'; model: string; visible: boolean; account: string } | { action: 'set-model-context-window'; model: string; window: number; account: string } | { action: 'set-model-default-effort'; model: string; effort?: string; account: string }): Promise<void> => {
     const key = status?.status === 'signed-in' ? status.probeKey : undefined
     if (key === undefined) return
     // A visibility toggle runs on its own per-row in-flight set so the
@@ -1164,14 +1179,14 @@ export function WorkBuddyPluginCard({ t, variant = CN_CARD_VARIANT }: WorkBuddyP
       // the host did not persist the toggle, and the checkbox must not be left
       // claiming it did — the thrown reason lands beside the list and the
       // document's next read restores the honest state.
-      if ((action.action === 'set-maximum-context-window' || action.action === 'set-model-visibility' || action.action === 'set-model-context-window')
+      if ((action.action === 'set-maximum-context-window' || action.action === 'set-model-visibility' || action.action === 'set-model-context-window' || action.action === 'set-model-default-effort')
         && (typeof value !== 'object' || value === null || (value as Record<string, unknown>)['state'] !== 'updated')) {
         const state = typeof value === 'object' && value !== null ? (value as Record<string, unknown>)['state'] : undefined
         // A stale write (the account switched under the open card) is its own
         // outcome: explain it in the user's language and re-read now, so the
         // checkboxes converge on the new account's section instead of waiting
         // for the next poll while still showing the departed account's list.
-        if ((action.action === 'set-model-visibility' || action.action === 'set-model-context-window') && state === 'stale-account') {
+        if ((action.action === 'set-model-visibility' || action.action === 'set-model-context-window' || action.action === 'set-model-default-effort') && state === 'stale-account') {
           await refresh(controller.signal)
           throw new Error(t('visibilityStaleAccount'))
         }
@@ -1401,6 +1416,7 @@ export function WorkBuddyPluginCard({ t, variant = CN_CARD_VARIANT }: WorkBuddyP
                             onUseMaximumContextWindow: (enabled: boolean) => { void control({ action: 'set-maximum-context-window', enabled }) },
                           }
                           : {}}
+                        onDefaultEffort={(modelId, effort) => { void control({ action: 'set-model-default-effort', model: modelId, ...(effort === undefined ? {} : { effort }), account: status.visibility?.account ?? '' }) }}
                         onContextWindow={(modelId, window) => { void control({ action: 'set-model-context-window', model: modelId, window, account: status.visibility?.account ?? '' }) }}
                         visibility={status.visibility}
                         visibilityControlsDisabled={busy}

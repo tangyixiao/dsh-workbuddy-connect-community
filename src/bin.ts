@@ -13,8 +13,9 @@ import { atRestKeyProviderFor } from './desktop-credential-protection.ts'
 import { CN_VARIANT, variantFor, WORKBUDDY_VARIANTS, type WorkBuddyVariant } from './variants.ts'
 import { resolveAppVersion } from './app-version.ts'
 import { shareableDoctorFailureReport, shareableDoctorReport } from './shareable-doctor.ts'
+import { WorkBuddyAccountError } from './account-store.ts'
 
-type Action = 'doctor' | 'logout' | 'status'
+type Action = 'doctor' | 'logout' | 'status' | 'accounts'
 
 const JSON_SCHEMA_VERSION = 1
 
@@ -29,14 +30,18 @@ function safeMessage(error: unknown): string {
 function printHelp(): void {
   process.stdout.write([
     'Usage: dsh-workbuddy-connect-community <doctor|status|logout> [--provider <id>] [--json]',
+    '       dsh-workbuddy-connect-community accounts <list|save-current|select ID|follow-desktop> [--provider <id>] [--json]',
     '',
     '  doctor   secret-free sign-in and environment diagnostics',
     '  status   sign-in state, remaining WorkBuddy credit, and host-bundle health',
     '  logout   remove the plugin-owned credential copy (the desktop app keeps its sign-in)',
+    '  accounts explicit saved-account management; emits redacted JSON without network requests',
+    '           save-current snapshots the effective account without selecting it',
+    '           select ID uses one saved account; follow-desktop resumes desktop following',
     '',
     '  --provider  which product to inspect; defaults to workbuddy',
     `              one of: ${WORKBUDDY_VARIANTS.map(variant => variant.id).join(', ')}`,
-    '  --json      emit one secret-free JSON document (doctor/status only)',
+    '  --json      emit one secret-free JSON document (doctor/status/accounts only)',
     '  --share     emit a copy-safe JSON doctor report (doctor only)',
     '',
   ].join('\n'))
@@ -240,9 +245,9 @@ export async function run(argv: readonly string[]): Promise<number> {
     return 0
   }
   const [rawAction, ...flags] = argv
-  const actions: readonly Action[] = ['doctor', 'logout', 'status']
+  const actions: readonly Action[] = ['doctor', 'logout', 'status', 'accounts']
   if (!actions.includes(rawAction as Action)) {
-    process.stderr.write(`dsh-workbuddy-connect-community: expected doctor, logout, or status; got ${JSON.stringify(rawAction)}\n`)
+    process.stderr.write(`dsh-workbuddy-connect-community: expected doctor, logout, status, or accounts\n`)
     return 1
   }
   const action = rawAction as Action
@@ -252,34 +257,62 @@ export async function run(argv: readonly string[]): Promise<number> {
   // `--provider <id>` (or `--provider=<id>`); absent means the CN provider, so
   // every existing invocation keeps its behaviour.
   let providerId: string | undefined
+  let providerSeen = false
+  let invalidFlag = false
+  const seenSwitches = new Set<string>()
   const rest: string[] = []
   for (let index = 0; index < flags.length; index += 1) {
     const flag = flags[index]!
     if (flag === '--provider') {
+      if (providerSeen || flags[index + 1] === undefined || flags[index + 1]!.startsWith('-')) { invalidFlag = true; break }
+      providerSeen = true
       providerId = flags[index + 1]
       index += 1
       continue
     }
     if (flag.startsWith('--provider=')) {
+      if (providerSeen || flag === '--provider=') { invalidFlag = true; break }
+      providerSeen = true
       providerId = flag.slice('--provider='.length)
       continue
     }
+    if (flag === '--json' || flag === '--share') {
+      if (seenSwitches.has(flag)) { invalidFlag = true; break }
+      seenSwitches.add(flag)
+    }
     rest.push(flag)
+  }
+  if (invalidFlag) {
+    process.stderr.write(`dsh-workbuddy-connect-community: invalid options for ${action}\n`)
+    return 1
   }
   const variant = providerId === undefined ? CN_VARIANT : variantFor(providerId)
   if (variant === undefined) {
     process.stderr.write(
-      `dsh-workbuddy-connect-community: unknown provider ${JSON.stringify(providerId)}; expected one of ${WORKBUDDY_VARIANTS.map(v => v.id).join(', ')}\n`,
+      `dsh-workbuddy-connect-community: unknown provider; expected one of ${WORKBUDDY_VARIANTS.map(v => v.id).join(', ')}\n`,
     )
     return 1
   }
-  const unknown = rest.filter(flag => flag !== '--json' && flag !== '--share')
-  if (unknown.length > 0 || (jsonOutput && action === 'logout') || (share && action !== 'doctor')) {
-    process.stderr.write(`dsh-workbuddy-connect-community: invalid options for ${action}: ${flags.join(' ')}\n`)
+  const operands = rest.filter(flag => flag !== '--json' && flag !== '--share')
+  const accountCommand = operands[0]
+  const validAccountCommand = (accountCommand === 'select' && operands.length === 2 && /^(cn|global)-[a-f0-9]{32}$/u.test(operands[1]!))
+    || (['list', 'save-current', 'follow-desktop'].includes(accountCommand ?? '') && operands.length === 1)
+  if ((action === 'accounts' ? !validAccountCommand : operands.length > 0) || (jsonOutput && action === 'logout') || (share && action !== 'doctor')) {
+    // Account operands may be accidentally pasted credentials; never echo them.
+    process.stderr.write(`dsh-workbuddy-connect-community: invalid options for ${action}\n`)
     return 1
   }
   try {
     switch (action) {
+      case 'accounts': {
+        const store = makeStore(variant)
+        let account: Awaited<ReturnType<WorkBuddyCredentialStore['saveCurrentAccount']>> | undefined
+        if (accountCommand === 'save-current') account = await store.saveCurrentAccount()
+        if (accountCommand === 'select') await store.selectAccount(operands[1]!)
+        if (accountCommand === 'follow-desktop') await store.followDesktop()
+        printJson({ schemaVersion: JSON_SCHEMA_VERSION, provider: variant.id, ...(await store.listAccounts()), ...account === undefined ? {} : { account } })
+        return 0
+      }
       case 'doctor':
         return await doctor(jsonOutput, share, variant)
       case 'status':
@@ -297,6 +330,10 @@ export async function run(argv: readonly string[]): Promise<number> {
       }
     }
   } catch (error: unknown) {
+    if (action === 'accounts') {
+      printJson({ schemaVersion: JSON_SCHEMA_VERSION, provider: variant.id, status: 'error', error: error instanceof WorkBuddyAccountError ? error.code : 'account-operation-failed' })
+      return 1
+    }
     if (action === 'doctor' && share) {
       printJson(shareableDoctorFailureReport({
         version: WORKBUDDY_CONNECT_VERSION,

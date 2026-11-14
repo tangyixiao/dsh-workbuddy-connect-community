@@ -135,11 +135,11 @@ function thinkingLevelMapFor(
 }
 
 describe('first-turn requests with no reasoning level chosen', () => {
-  it('sends no reasoning_effort for the CN contradictory row (#87, @qiwuyi)', async () => {
-    // The user touched nothing: no `reasoningEffort` is passed in. Without the
-    // fix, the map's `off` entry turns into `reasoning_effort: "off"` here.
+  it('uses its declared default without accidentally disabling CN reasoning (#87)', async () => {
+    // Direct calls now share the valid upstream/saved default with host calls.
+    // This row explicitly declares high; no omitted selection may become off.
     const body = await firstTurnBody(CN_FLASH, 'cn')
-    expect('reasoning_effort' in body).toBe(false)
+    expect(body['reasoning_effort']).toBe('high')
   })
 
   it('offers no Off level for that row, so the picker cannot select one', async () => {

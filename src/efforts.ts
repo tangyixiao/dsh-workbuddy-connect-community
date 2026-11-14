@@ -37,7 +37,8 @@ export function resolveEfforts(
 }
 
 /** Honor only an upstream default among the offered levels; never invent one. */
-export function resolveDefaultEffort(info: WorkBuddyModelInfo, offered: readonly string[]): WorkBuddyEffort | undefined {
+export function resolveDefaultEffort(info: WorkBuddyModelInfo, offered: readonly string[], preferred?: WorkBuddyEffort): WorkBuddyEffort | undefined {
+  if (preferred !== undefined && offered.includes(preferred)) return preferred
   const effort = info.reasoning?.defaultEffort
   return effort !== undefined && offered.includes(effort) ? effort : undefined
 }

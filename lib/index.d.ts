@@ -270,7 +270,7 @@ export declare function probeModel(options: {
 /** WorkBuddy region selected by the credential's login domain. */
 type WorkBuddyRegion = 'cn' | 'global';
 /** Upstream failure classes the shim maps onto distinct HTTP answers. */
-type UpstreamErrorKind = 'hard_credit' | 'soft_rate' | 'session_dead' | 'not_found' | 'server' | 'client';
+type UpstreamErrorKind = 'hard_credit' | 'model_busy' | 'policy_reject' | 'channel_reject' | 'queue' | 'soft_rate' | 'session_dead' | 'not_found' | 'server' | 'client';
 /** One CLI-usable model as the upstream catalog describes it. */
 interface WorkBuddyUpstreamModel {
   id: string;
@@ -996,6 +996,16 @@ declare class WorkBuddyAtRestKeyProvider {
   private spawnPayload;
   private spawnAt;
 }
+interface SavedAccountSummary {
+  id: string;
+  region: WorkBuddyRegion;
+  selected: boolean;
+  expiresAtMs: number;
+}
+interface ManualAccountStatus {
+  mode: 'follow-desktop' | 'saved-account';
+  accounts: SavedAccountSummary[];
+}
 /** Normalized WorkBuddy credential, timestamps in epoch milliseconds. */
 interface WorkBuddyCredential {
   accessToken: string;
@@ -1097,7 +1107,8 @@ export declare class WorkBuddyCredentialStore {
   private readonly ownPath;
   private readonly keyProvider;
   private desktopPathOverride;
-  private inflight;
+  private readonly accounts;
+  private readonly inflight;
   constructor(options: WorkBuddyStoreOptions);
   /**
    * Configuration precedence for the desktop file: the plugin's configured
@@ -1116,6 +1127,14 @@ export declare class WorkBuddyCredentialStore {
   ownAuthPath(): string;
   /** Read the freshest stored credential without refreshing anything. */
   current(): Promise<WorkBuddyCredential | undefined>;
+  /** Selection is re-read on every call so a CLI and running host share state. */
+  private currentSnapshot;
+  listAccounts(): Promise<ManualAccountStatus>;
+  /** Save the effective account without selecting it or performing a refresh. */
+  saveCurrentAccount(): Promise<SavedAccountSummary>;
+  selectAccount(id: string): Promise<void>;
+  followDesktop(): Promise<void>;
+  private currentDesktop;
   /**
    * The credential to send upstream: {@link current}, refreshed on demand.
    * Single-flight, so parallel requests share one refresh.
@@ -1387,6 +1406,8 @@ interface WorkBuddyShimOptions {
   client: Pick<WorkBuddyUpstreamClient, 'chatStream'>;
   catalog: WorkBuddyCatalog;
   logger?: ShimLogger;
+  /** Real host adapters bind prepared settings to the resolved billing account. */
+  requireAccountScope?: boolean;
   /** Receives only a completed upstream response's observed credit. */
   onCredit?: (responseId: string, credit: number) => void;
   /** Captures request account scope and an epoch shared with host reconciliation. */
@@ -1444,6 +1465,10 @@ interface WorkBuddyAdapterOptions {
    * therefore lives in this adapter's `listModels` override alone.
    */
   hidden?: () => readonly string[];
+  /** Current account's saved default. Validated against this call's offered set. */
+  defaultEffort?: (modelId: string) => WorkBuddyEffort | undefined;
+  /** Reconcile credentials/catalog before reading account-scoped preferences. */
+  prepareAccount?: () => Promise<string | undefined>;
 }
 /** What {@link createWorkBuddyAdapter} hands back. */
 interface WorkBuddyAdapter {

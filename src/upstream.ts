@@ -21,6 +21,10 @@ export type WorkBuddyRegion = 'cn' | 'global'
 /** Upstream failure classes the shim maps onto distinct HTTP answers. */
 export type UpstreamErrorKind =
   | 'hard_credit'
+  | 'model_busy'
+  | 'policy_reject'
+  | 'channel_reject'
+  | 'queue'
   | 'soft_rate'
   | 'session_dead'
   | 'not_found'
@@ -350,23 +354,52 @@ function resolveUpstreamBilling(
 }
 
 /** Session-invalidation markers that mean "sign in again in the WorkBuddy app". */
-const SESSION_DEAD_MARKERS: readonly string[] = ['Offline user session not found', '12153']
+const SESSION_DEAD_MARKERS: readonly string[] = ['Offline user session not found']
+
+/** Parse only a canonical top-level business code, never nested data or IDs. */
+export function upstreamBusinessCode(body: string): number | undefined {
+  try {
+    const parsed: unknown = JSON.parse(body)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined
+    const value = (parsed as Record<string, unknown>)['code']
+    if (typeof value === 'number') return Number.isSafeInteger(value) && value >= 0 ? value : undefined
+    if (typeof value !== 'string' || !/^(?:0|[1-9]\d*)$/u.test(value)) return undefined
+    const code = Number(value)
+    return Number.isSafeInteger(code) ? code : undefined
+  } catch { return undefined }
+}
 
 /** Classify an upstream failure from its HTTP status and body excerpt. */
 export function classifyUpstreamError(status: number, body: string): UpstreamErrorKind {
-  if (status === 402) return 'hard_credit'
   // A 401 is an auth failure whatever its body says: there is no business
   // meaning for it on this upstream, and the session-dead markers below are
   // only an additional signal (they also catch dead sessions answered as
   // 403). Keeping every 401 in `session_dead` preserves the `(http 401)`
   // status note the host needs to classify it as AUTH.
   if (status === 401) return 'session_dead'
-  const lower = body.toLowerCase()
+  const code = upstreamBusinessCode(body)
+  if (code === 14003) return 'model_busy'
+  if (code === 14018) return 'hard_credit'
+  if (code === 11140) return 'policy_reject'
+  if (code === 6020 || code === 6021 || code === 6022) return 'queue'
+  if (code === 12153) return 'session_dead'
+  if (code === 11128) {
+    // This code also covers missing conversation IDs and system messages.
+    // Only the measured channel reason supports a channel classification.
+    const parsed = JSON.parse(body) as Record<string, unknown>
+    return typeof parsed['msg'] === 'string'
+      && parsed['msg'].trim().toLowerCase() === 'illegal api invocation from an unapproved channel'
+      ? 'channel_reject' : 'client'
+  }
+  if (status === 402) return 'hard_credit'
+  // Arbitrary JSON fields (request IDs, nested details) are not error signals.
+  const detail = extractDisplayErrorMessage(body) ?? (body.trim().startsWith('{') ? '' : body)
+  const lower = detail.toLowerCase()
   for (const marker of HARD_CREDIT_MARKERS) {
-    if (lower.includes(marker.toLowerCase()) || body.includes(marker)) return 'hard_credit'
+    if (lower.includes(marker.toLowerCase())) return 'hard_credit'
   }
   for (const marker of SESSION_DEAD_MARKERS) {
-    if (body.includes(marker)) return 'session_dead'
+    if (detail.includes(marker)) return 'session_dead'
   }
   if (status === 429) return 'soft_rate'
   if (status === 404) return 'not_found'
@@ -746,7 +779,7 @@ async function readEnvelope(response: Response): Promise<Envelope> {
 
 /** Fail an envelope whose business code is non-zero, classified like HTTP errors. */
 function envelopeError(status: number, envelope: Envelope): Error {
-  const kind = classifyUpstreamError(status, envelope.msg)
+  const kind = classifyUpstreamError(status, JSON.stringify(envelope.document))
   return new Error(`workbuddy upstream ${kind} (http ${status}): ${envelope.msg.slice(0, 160)}`)
 }
 
@@ -933,7 +966,9 @@ export class WorkBuddyUpstreamClient {
     } catch (error: unknown) {
       return { ok: false, status: 0, kind: 'server', message: `transport error: ${String(error)}` }
     }
-    if (response.ok) return { ok: true, response }
+    // Business rejections can arrive as JSON with HTTP 200. SSE success is
+    // handed through unread; JSON is never a valid chat-completion stream.
+    if (response.ok && !response.headers?.get('content-type')?.toLowerCase().includes('application/json')) return { ok: true, response }
     const text = (await response.text()).slice(0, ERROR_BODY_LIMIT)
     return {
       ok: false,

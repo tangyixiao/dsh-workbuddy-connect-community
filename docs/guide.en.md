@@ -1,6 +1,6 @@
 # Detailed usage and technical guide
 
-Run commands from the repository root. Return to the [README](../README.md).
+Run commands from the repository root. Return to the [README](../README.en.md).
 
 <p><img src="../assets/logo.webp" width="96" height="96" alt="dsh-workbuddy-connect-community logo"></p>
 
@@ -18,19 +18,25 @@ Version 0.1.16 displays observed credit consumption beside an assistant message 
 
 The model picker, status data, and request preparation share reasoning capability resolution. Explicit upstream effort sets take precedence over local probe observations, which only supplement validation; the CN `onlyReasoning` veto continues to disable Off. An upstream default is applied only when it belongs to the currently offered set, keeping the picker and request default aligned. Without a valid declared default, existing behavior is retained; no new `high` fallback is introduced.
 
+### This change: per-model default reasoning level
+
+The corresponding candidate adds **Default reasoning level** to each model row in the existing **Context window** tab. Choices come only from current upstream declarations or validated observed levels; changing a preference triggers no extra generation or probe. Preferences are saved separately by product, account and model. An explicit reasoning choice in a session request wins over the saved preference. Choose **Upstream / host default** to reset: use a still-valid upstream default, then existing host behavior, without introducing a `high` fallback. After changing accounts, wait for that account's model rows to refresh before writing; stale-account writes are rejected.
+
+Status fields `availableEfforts`, `savedDefaultEffort`, `upstreamDefaultEffort` and `defaultEffort` represent offered levels, the saved preference, the upstream default and the effective default. The existing authenticated control action `set-model-default-effort` accepts `{model, account, effort?}`; omit `effort` to reset. Keep account fields and control credentials out of shared logs. This action sends no model request. Request preparation captures its effective default; later preference changes do not alter a request already prepared. This describes the source change and does not establish that published `0.1.17` includes the feature.
+
 ## Install or replace
 
-Release **`0.1.16`** declares DSH **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5 || 0.2.2-rc.1`**; other RCs and stable releases require separate qualification. Isolated host testing verified provider registration on 0.2.2-rc.1; live inference has not been verified. It retains rc.5 compatibility and offers per-model context choices in the composer model menu and in plugin settings where the catalog declares tiers. Choices are stored separately by product and account and set the DSH context budget; models without declared tiers have no selector. When the CN CLI catalog omits tiers, a personal account can use a desktop product snapshot less than 24 hours old, joined by exact model ID and input cap; otherwise no tier is inferred. A read-only catalogue check returned 16 models for the Windows China client, and the user confirmed that the DSH model picker displayed them. Authenticated model generation and live WorkBuddy AI requests have not been accepted. macOS and Linux have not been live-verified for this fork.
+The current installation baseline is release **`0.1.17`**, declaring DSH **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5 || 0.2.2-rc.1`**; other RCs and stable releases require separate qualification. See the [0.1.17 release notes](release-notes-0.1.17.md) for its dependency fixes; this source change does not establish a new release. Isolated host testing verified provider registration on 0.2.2-rc.1; live inference has not been verified. The plugin retains rc.5 compatibility and offers per-model context choices in the composer model menu and in plugin settings where the catalog declares tiers. Choices are stored separately by product and account and set the DSH context budget; models without declared tiers have no selector. When the CN CLI catalog omits tiers, a personal account can use a desktop product snapshot less than 24 hours old, joined by exact model ID and input cap; otherwise no tier is inferred. A read-only catalogue check returned 16 models for the Windows China client, and the user confirmed that the DSH model picker displayed them. Authenticated model generation and live WorkBuddy AI requests have not been accepted. macOS and Linux have not been live-verified for this fork. Use the [acceptance guide](acceptance.md) to record the exact version, platform, and product tested.
 
 **DSH Desktop:** use Extensions → Plugin Management → Add Plugin and select the downloaded `.tgz` to install or update it. The desktop app manages its profile; the CLI example below is for a standalone Web profile. Keep the community package disabled after installation, disable the original `dsh-workbuddy-connect`, then enable the community package. Retain the original and its configuration for rollback. Enable only one package to avoid duplicate provider registration.
 
-Download the package from the [GitHub release](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.16) and install it through a DSH-supported plugin method:
+Download the package from the [GitHub release](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.17) and install it through a DSH-supported plugin method:
 
 ```sh
-dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.16/dsh-workbuddy-connect-community-0.1.15.tgz
+dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.17/dsh-workbuddy-connect-community-0.1.17.tgz
 ```
 
-If the original plugin is installed, save its current version and configuration, then replace it through a DSH-supported method. The original and community plugins must not be enabled together: they use the same provider IDs and account login data. If replacement fails, remove the community package and restore the saved original. Do not delete WorkBuddy sign-in data or chat data. npm package page: [0.1.16](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.16).
+If the original plugin is installed, save its current version and configuration, then replace it through a DSH-supported method. The original and community plugins must not be enabled together: they use the same provider IDs and account login data. If replacement fails, remove the community package and restore the saved original. Do not delete WorkBuddy sign-in data or chat data. npm package page: [0.1.17](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.17).
 
 ### Coexistence with ZCode
 
@@ -38,25 +44,42 @@ Hot-loaded coexistence with [`dsh-zcode-plan-bridge`](https://github.com/tangyix
 
 ## Compatibility and limits
 
+### This change: manually save and select accounts
+
+These commands belong to this source change and require its built and installed candidate; their documentation does not establish that the published `0.1.17` package contains them. The default product is China; explicitly add `--provider workbuddy-ai` for the international product. Every account operation prints redacted JSON without a network call; `--json` can mark the output format explicitly.
+
+```sh
+dsh-workbuddy-connect-community accounts list --provider workbuddy --json
+dsh-workbuddy-connect-community accounts save-current --provider workbuddy
+dsh-workbuddy-connect-community accounts select <id> --provider workbuddy
+dsh-workbuddy-connect-community accounts follow-desktop --provider workbuddy
+```
+
+To save multiple accounts, sign into account A in the matching desktop app and run `save-current`, then sign into B and save it, then use the ID from the redacted `list` output to `select` explicitly. Saving snapshots the currently effective account without selecting it. If a saved account is already selected, `save-current` snapshots that effective account; return to `follow-desktop` before capturing a new desktop sign-in. Selection persists separately by product. `follow-desktop` restores the existing desktop-following rules. There is no automatic rotation or desktop-auth file modification.
+
+Plugin-owned account snapshots contain credentials and must be protected as credential files. Never upload them or attach them to acceptance records; redacted CLI output does not make the stored file redacted. Existing `logout` removes only the legacy plugin refresh copy; it does not erase saved snapshots or clear explicit selection. Use `accounts follow-desktop` to leave saved-account selection. Corrupt state or a missing selected record must fail without silently falling back. Record persistence and cross-account request/refresh isolation using the [acceptance guide](acceptance.md).
+
 The plugin reuses the desktop app's sign-in and service interfaces. Model catalogs, requests, and credit displays depend on the third-party service, which can change or become unavailable. Community maintenance does not mean authorization or endorsement by WorkBuddy, Tencent, or DeepSeek. Follow the applicable service terms.
 
-The package contains no account credentials, user sessions, or runtime data. Credentials are read from the local app or a credential copy stored by DSH itself.
+The distributed package contains no account credentials, user sessions, or runtime data. Credentials come from the local app or the plugin refresh copy; this change can also read plugin-owned account snapshots after an explicit save.
 
 Version 0.1.12 authenticates both variants' Web status and control routes through DSH `connection.admit()` and permits only the Host owner. Anonymous or expired sessions receive 401; other principals receive 403. Controls also require the Host/Origin checks and `probeKey`. Responses are not cached. Without the Host `connection` service, these routes are not mounted; the provider and CLI remain available in headless profiles. This security fix is included starting with 0.1.12.
 
 ## Diagnostics and shareable reports
 
-The `--share` feature below is included in 0.1.12; the 0.1.10 package does not include it. Run `dsh-workbuddy-connect-community doctor --share` to print copyable JSON. For the international app, use `dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai`. The report is limited to package/runtime/platform/architecture versions, provider, auth-file presence and format, sign-in state and a known reason code, host heartbeat state, fallback model count, and a safe app-version source label. It omits local paths, account identifiers, process IDs, timestamps, and free-text errors. `readiness.authentication: credential-found` means the local credential parsed; it does not validate token freshness or attempt a refresh. `readiness.liveInference` is always `not-tested`: the command sends no model request. If a local diagnostic read fails, the command still prints JSON with only the fixed `diagnostic-unavailable` error code. The report does not establish service availability.
+The `--share` feature has shipped since stable 0.1.11 and remains included in published 0.1.17; the 0.1.10 package does not include it. Run `dsh-workbuddy-connect-community doctor --share` to print copyable JSON. For the international app, use `dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai`. The report is limited to package/runtime/platform/architecture versions, provider, auth-file presence and format, sign-in state and a known reason code, host heartbeat state, fallback model count, and a safe app-version source label. It omits local paths, account identifiers, process IDs, timestamps, and free-text errors. `readiness.authentication: credential-found` means the local credential parsed; it does not validate token freshness or attempt a refresh. `readiness.liveInference` is always `not-tested`: the command sends no model request. If a local diagnostic read fails, the command still prints JSON with only the fixed `diagnostic-unavailable` error code. The report does not establish service availability.
 
 Use ordinary `doctor` output for local troubleshooting. Known reason codes are stable diagnostic categories: `no-credential` means there is no usable sign-in; `encrypted-credential-unreadable` means an encrypted credential could not be opened; `electron-binary-not-found`, `electron-binary-ambiguous`, `electron-binary-unavailable`, `electron-path-invalid`, and `electron-discovery-incomplete` describe a missing or ambiguous helper, unsupported automatic discovery, an invalid configured path, or an incomplete discovery attempt; `credential-region-mismatch` means the credential belongs to the other WorkBuddy product. Unknown reason codes are omitted from the shareable report.
 
 | Platform | Validation evidence |
 | --- | --- |
-| Windows | Previously accepted in a local run |
+| Windows | China catalog, model-menu, and specific host-registration evidence exists; live generation still needs case-by-case acceptance |
 | macOS | No live local validation |
 | Linux | No live local validation |
 
 Windows, macOS, and Linux inputs in cross-platform tests are simulated fixtures; they do not establish runtime acceptance on those systems. Diagnostics do not guarantee WorkBuddy service availability.
+
+See the [acceptance steps and evidence template](acceptance.md) and [feature boundaries and roadmap](roadmap.md).
 
 ## Provenance and license
 

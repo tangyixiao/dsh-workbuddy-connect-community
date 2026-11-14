@@ -877,8 +877,8 @@ describe('auth-failure classification beside the status-note policy (PR #58 revi
     expect(classifyUpstreamError(401, '')).toBe('session_dead')
   })
 
-  it('still classifies a markerless 403 as a business error', () => {
-    expect(classifyUpstreamError(403, JSON.stringify({ code: 11140, msg: 'request illegal' }))).toBe('client')
+  it('classifies a structured review rejection as a policy error', () => {
+    expect(classifyUpstreamError(403, JSON.stringify({ code: 11140, msg: 'request illegal' }))).toBe('policy_reject')
   })
 
   it('still recognises dead sessions carried by markers on other statuses', () => {

@@ -63,9 +63,10 @@ describe('doctor --share', () => {
       registeredAt: Date.now(),
       pid: process.pid,
     }))
-    const { code, stdout } = await capture(['doctor', '--share', '--provider', provider])
+    const { code, stdout, stderr } = await capture(['doctor', '--share', '--provider', provider])
     const report = JSON.parse(stdout) as Record<string, unknown>
     expect(code).toBe(0)
+    expect(stderr).toBe('')
     expect(report).toMatchObject({ provider, signIn: 'signed-in', fallbackModels: count })
     expect(report['runtime']).toBe(process.version)
     expect(report['platform']).toBe(process.platform)
@@ -146,6 +147,21 @@ describe('doctor --share', () => {
     expect(code).toBe(1)
     expect(stdout).toBe('')
     expect(stderr).toContain('invalid options')
+  })
+
+  it.each([
+    ['--provider', PATH_MARKER],
+    [`--provider=${PATH_MARKER}`],
+    [PATH_MARKER, TOKEN_MARKER],
+    ['--provider', '--share'],
+  ])('does not echo private invalid-option values from shared diagnostics: %j', async (...invalid) => {
+    const { code, stdout, stderr } = await capture(['doctor', '--share', ...invalid])
+    expect(code).toBe(1)
+    for (const marker of [PATH_MARKER, TOKEN_MARKER, 'PRIVATE-NICK']) {
+      expect(stdout).not.toContain(marker)
+      expect(stderr).not.toContain(marker)
+    }
+    expect(stderr).toMatch(/unknown provider|invalid options/u)
   })
 })
 

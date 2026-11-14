@@ -34,15 +34,15 @@ dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.17
 
 | 项目 | 当前依据 |
 | --- | --- |
-| 源码版本 | `0.1.17` · 以 [package.json](package.json) 为准 |
+| 源码版本 | `0.1.18`（未发布候选）· 公开安装示例仍使用已发布的 `0.1.17` · 以 [package.json](package.json) 为准 |
 | 分发方式 | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
 | DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1` |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |
 | 开发状态 | [Open issues](https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues?q=is%3Aissue+is%3Aopen) · [CI](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions) |
 
-已观察到的 `usage.credit` 不等于按 token 估算价格，也不代表整段会话总费用。模型目录、登录状态与真实上游请求须分别验证。
+消息旁的 `usage.credit` 仅是已关联到该消息的单次上游响应观测值；记录有内存容量上限，可能消失，不是持久账单或会话总费用。模型目录、登录状态与真实上游请求须分别验证。
 
-[详细使用、配置与故障排查](docs/guide.zh-CN.md)
+[详细使用、配置与故障排查](docs/guide.zh-CN.md) · [逐项验收](docs/acceptance.md) · [功能路线与前置条件](docs/roadmap.md)
 
 ## 开发与参与
 

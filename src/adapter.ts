@@ -10,7 +10,7 @@ import { createProvider } from '@earendil-works/pi-ai'
 import type { Api, AuthContext, CredentialStore, Model, ModelThinkingLevel, Provider, ThinkingLevelMap } from '@earendil-works/pi-ai'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { ReasoningEffortId, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
-import type { LlmModelInfo, LlmResolvedModelInfo, PreparedAdapterCall, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, PreparedAdapterCall, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import type { PiAiAdapterOptions, ResolvedPiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
@@ -19,7 +19,9 @@ import type { WorkBuddyCatalog, WorkBuddyModelInfo } from './catalog.ts'
 import type { WorkBuddyProbeRecord } from './probe-store.ts'
 import { resolveDefaultEffort, resolveEfforts } from './efforts.ts'
 import type { WorkBuddyShim } from './shim.ts'
-import { normalizeCredits, type WorkBuddyRegion } from './upstream.ts'
+import { normalizeCredits, type WorkBuddyEffort, type WorkBuddyRegion } from './upstream.ts'
+import { sanitizeWorkBuddyHistory } from './history.ts'
+import { WORKBUDDY_ACCOUNT_SCOPE_HEADER } from './account-scope.ts'
 
 /** Provider route this bundle owns. */
 export const WORKBUDDY_PROVIDER = 'workbuddy'
@@ -201,6 +203,10 @@ export interface WorkBuddyAdapterOptions {
    * therefore lives in this adapter's `listModels` override alone.
    */
   hidden?: () => readonly string[]
+  /** Current account's saved default. Validated against this call's offered set. */
+  defaultEffort?: (modelId: string) => WorkBuddyEffort | undefined
+  /** Reconcile credentials/catalog before reading account-scoped preferences. */
+  prepareAccount?: () => Promise<string | undefined>
 }
 
 /** What {@link createWorkBuddyAdapter} hands back. */
@@ -372,13 +378,15 @@ export function createWorkBuddyAdapter(options: WorkBuddyAdapterOptions): WorkBu
     ...(resolveImageAccess === undefined ? {} : { resolveImageAccess }),
   }
 
-  const adapter = new WorkBuddyPiAiAdapter(catalog, hidden ?? (() => []), adapterOptions, (requestedProvider, model, signal) => {
+  const adapter = new WorkBuddyPiAiAdapter(catalog, hidden ?? (() => []), options.defaultEffort ?? (() => undefined), options.prepareAccount, adapterOptions, (requestedProvider, model, signal, scope) => {
     // A prepared call owns one model descriptor. The live provider remains
     // unchanged, so concurrent calls prepared after a refresh see new facts.
     const models = buildModels().filter(entry => entry.id === model)
     const capturedProvider: Provider = { ...provider, getModels: () => models }
     const capturedProfiles = new Map([[providerId, { ...profile, piProvider: capturedProvider }]])
-    const capturedAdapter = new PiAiAdapter({ ...adapterOptions, profiles: () => capturedProfiles })
+    const capturedAdapter = new PiAiAdapter({ ...adapterOptions, profiles: () => capturedProfiles,
+      ...(scope === undefined ? {} : { prepareHeaders: (_request, headers) => { headers.set(WORKBUDDY_ACCOUNT_SCOPE_HEADER, scope); return headers } }),
+    })
     return capturedAdapter.prepareCall(requestedProvider, model, signal)
   })
 
@@ -410,8 +418,10 @@ class WorkBuddyPiAiAdapter extends PiAiAdapter {
   constructor(
     private readonly catalog: WorkBuddyCatalog,
     private readonly hidden: () => readonly string[],
+    private readonly defaultEffort: (modelId: string) => WorkBuddyEffort | undefined,
+    private readonly prepareAccount: (() => Promise<string | undefined>) | undefined,
     options: ConstructorParameters<typeof PiAiAdapter>[0],
-    private readonly prepareSnapshot: PiAiAdapter['prepareCall'],
+    private readonly prepareSnapshot: (provider: string, model: string, signal?: AbortSignal, scope?: string) => Promise<PreparedAdapterCall>,
   ) {
     super(options)
   }
@@ -422,6 +432,7 @@ class WorkBuddyPiAiAdapter extends PiAiAdapter {
   }
 
   override async listModels(provider: string): Promise<readonly LlmModelInfo[]> {
+    await this.prepareAccount?.()
     const models = await super.listModels(provider)
     // Resolved fresh per call: the picker reads this after every
     // `llm/adapters-updated`, so an account switch or a toggle takes effect on
@@ -438,11 +449,11 @@ class WorkBuddyPiAiAdapter extends PiAiAdapter {
   }
 
   /** Apply catalog display and a valid upstream default to either resolution seam. */
-  private withCatalogInfo(resolved: LlmResolvedModelInfo, info: WorkBuddyModelInfo | undefined): LlmResolvedModelInfo {
+  private withCatalogInfo(resolved: LlmResolvedModelInfo, info: WorkBuddyModelInfo | undefined, preferred?: WorkBuddyEffort): LlmResolvedModelInfo {
     if (info === undefined) return resolved
     // Validate against the captured generation's offered levels, even if a
     // catalog refresh or observation changed while resolution was pending.
-    const effort = resolveDefaultEffort(info, resolved.reasoning?.efforts.map(entry => entry.id) ?? [])
+    const effort = resolveDefaultEffort(info, resolved.reasoning?.efforts.map(entry => entry.id) ?? [], preferred)
     return {
       ...resolved,
       name: withCatalogDisplay(resolved.name, info),
@@ -453,15 +464,29 @@ class WorkBuddyPiAiAdapter extends PiAiAdapter {
   }
 
   override async resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo> {
+    await this.prepareAccount?.()
     const info = this.infoFor(model)
-    return this.withCatalogInfo(await super.resolveModel(provider, model, signal), info)
+    const preferred = this.defaultEffort(model)
+    return this.withCatalogInfo(await super.resolveModel(provider, model, signal), info, preferred)
   }
 
   override async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall> {
+    const scope = await this.prepareAccount?.()
     const info = this.infoFor(model)
-    const prepared = await this.prepareSnapshot(provider, model, signal)
+    const preferred = this.defaultEffort(model)
+    const prepared = await this.prepareSnapshot(provider, model, signal, scope)
     // DSH selects an omitted request effort from this captured model default.
     // The delegated SDK closure reads only this call's captured descriptor.
-    return { ...prepared, model: this.withCatalogInfo(prepared.model, info) }
+    const captured = this.withCatalogInfo(prepared.model, info, preferred)
+    return { ...prepared, model: captured, stream: options => prepared.stream(sanitizeWorkBuddyHistory({
+      ...options,
+      ...(options.reasoningEffort !== undefined || captured.reasoning?.defaultEffort === undefined ? {} : { reasoningEffort: captured.reasoning.defaultEffort }),
+    })) }
+  }
+
+  override stream(options: GenerateOptions): ReturnType<PiAiAdapter['stream']> {
+    // Direct callers get the same captured metadata and history boundary.
+    const prepare = this.prepareCall(options.provider, options.model, options.signal)
+    return (async function* () { const call = await prepare; yield* call.stream(options) })()
   }
 }

@@ -86,6 +86,19 @@ async function postRaw(
 }
 
 describe('probe control route', () => {
+  it('guards reasoning defaults, rejects malformed choices and supports reset', async () => {
+    const received: unknown[] = []
+    const { origin, key } = await mount({ setModelDefaultEffort: async (...args) => { received.push(args); return { state: 'updated' } } })
+    const headers = { 'X-WorkBuddy-Probe-Key': key }
+    const body = { action: 'set-model-default-effort', model: 'hy4', effort: 'high', account: 'a' }
+    expect((await post(origin, body)).status).toBe(403)
+    expect((await post(origin, { ...body, effort: 'off' }, headers)).status).toBe(400)
+    expect((await post(origin, { ...body, account: '' }, headers)).status).toBe(400)
+    expect((await post(origin, { ...body, effort: null }, headers)).status).toBe(400)
+    expect((await post(origin, body, headers)).body.state).toBe('updated')
+    expect((await post(origin, { action: body.action, model: 'hy4', account: 'a' }, headers)).body.state).toBe('updated')
+    expect(received).toEqual([['hy4', 'high', 'a'], ['hy4', undefined, 'a']])
+  })
   it('validates and forwards context tier actions through the guarded route', async () => {
     const received: unknown[] = []
     const { origin, key } = await mount({ setModelContextWindow: async (...args) => { received.push(args); return { state: 'updated' } } })

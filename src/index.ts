@@ -1,4 +1,7 @@
 import { ContextWindowStore } from './context-window-store.ts'
+import { ReasoningDefaultStore } from './reasoning-default-store.ts'
+import { updateModelDefaultEffort } from './reasoning-control.ts'
+import { workBuddyRequestScope } from './account-scope.ts'
 /**
  * WorkBuddy models for DeepSeek Harness, reusing the WorkBuddy desktop apps'
  * sign-in. Registers one provider per product variant — `workbuddy` for the CN
@@ -356,6 +359,8 @@ interface VariantRuntime {
    */
   visibilityStore: WorkBuddyVisibilityStore
   contextWindowStore: ContextWindowStore
+  reasoningDefaultStore: ReasoningDefaultStore
+  reconcile: () => Promise<void>
   creditLog: WorkBuddyCreditLog
   /**
    * The visibility account key currently in effect (`uid:enterpriseId`), or
@@ -505,6 +510,8 @@ function createVariantRuntime(
     savedCatalogs,
     visibilityStore,
     contextWindowStore: new ContextWindowStore(workbuddyVisibilityPath(`${variant.visibilityFilename}.context-windows`)),
+    reasoningDefaultStore: new ReasoningDefaultStore(workbuddyVisibilityPath(`${variant.visibilityFilename}.reasoning-defaults`)),
+    reconcile: async () => {},
     creditLog: new WorkBuddyCreditLog(),
     account: () => accountOf(variant.id),
     fallback,
@@ -594,6 +601,7 @@ async function startVariant(ctx: Context, runtime: VariantRuntime): Promise<bool
   const { variant, store, client, catalog, probeService } = runtime
   const shim = createWorkBuddyShim({
     store, client, catalog, logger: ctx.logger,
+    requireAccountScope: true,
     creditEpoch: () => runtime.creditLog.epoch,
     onCreditScoped: (responseId, credit, account, epoch) => runtime.creditLog.observe(responseId, credit, account, epoch),
   })
@@ -625,6 +633,21 @@ async function startVariant(ctx: Context, runtime: VariantRuntime): Promise<bool
         ref,
       ),
       observe: modelId => probeService.recordFor(modelId),
+      prepareAccount: async () => {
+        await runtime.reconcile()
+        // Reconciliation has already reported/refused unreadable or wrong-
+        // region credentials and hidden their catalog. Listing stays empty.
+        const credential = await store.current().catch(() => undefined)
+        // Both routes are registered even for a CN-only/global-only user.
+        // Reconciliation hides a signed-out catalog; listing must stay empty.
+        if (credential === undefined) return undefined
+        if (visibilityAccountOf(credential) !== runtime.account()) throw new Error('WorkBuddy account changed; refresh the model list and send again')
+        return workBuddyRequestScope(credential)
+      },
+      defaultEffort: modelId => {
+        const account = runtime.account()
+        return account === undefined ? undefined : runtime.reasoningDefaultStore.get(account, modelId)
+      },
       // Hidden ids resolve per read from the store by the *current* account:
       // an account switch or a toggle changes the answer after the next
       // invalidate, and a signed-out or uid-less variant hides nothing.
@@ -845,6 +868,13 @@ export function apply(ctx: Context, config: Config): void {
         store: runtime.store,
         client: runtime.client,
         models: () => runtime.catalog.current(),
+        beforeRead: () => runtime.reconcile(),
+        region: runtime.variant.region,
+        observe: modelId => runtime.probeService.recordFor(modelId),
+        defaultEffort: modelId => {
+          const account = runtime.account()
+          return account === undefined ? undefined : runtime.reasoningDefaultStore.get(account, modelId)
+        },
         catalog: () => catalogSection(runtime),
         probe: () => probeSection(runtime, current().probeConsent === true),
         probeKey,
@@ -913,6 +943,19 @@ export function apply(ctx: Context, config: Config): void {
             return setMaximumContextWindow(enabled)
           },
         },
+        setModelDefaultEffort: (modelId, effort, expectedAccount) => updateModelDefaultEffort({
+          currentAccount: async () => {
+            if (stopped) return undefined
+            const credential = await runtime.store.current()
+            return credential === undefined ? undefined : visibilityAccountOf(credential)
+          },
+          activeAccount: runtime.account,
+          models: () => runtime.catalog.current(),
+          observe: modelId => runtime.probeService.recordFor(modelId),
+          region: runtime.variant.region,
+          store: runtime.reasoningDefaultStore,
+          invalidate: () => runtime.invalidate(),
+        }, modelId, effort, expectedAccount),
         setModelContextWindow: async (modelId, window, expectedAccount) => {
           const account = runtime.account()
           if (account === undefined || account !== expectedAccount) return { state: 'stale-account', reason: 'the signed-in account changed' }
@@ -1345,6 +1388,7 @@ export function apply(ctx: Context, config: Config): void {
     for (const runtime of runtimes) await syncVariant(runtime)
   }
 
+  for (const runtime of runtimes) runtime.reconcile = () => syncVariant(runtime)
   void Promise.all(runtimes.map(async runtime => startVariant(ctx, runtime))).then(() => {
     if (stopped) return
     // The host bundle is live: write a heartbeat so the status CLI can report
