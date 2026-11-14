@@ -142,6 +142,22 @@ describe('context capacity reporting', () => {
 })
 
 describe('web status route gate', () => {
+  it.each([new Error('C:\\private\\account.json Bearer arbitrary-private-credential'), 'C:\\private\\account.json Bearer arbitrary-private-credential'])('never exports a status exception to the browser (%s)', async failure => {
+    const port = await startStatusServer({ beforeRead: async () => { throw failure } })
+    const response = await requestOnce({ port, method: 'GET', headers: { host: '127.0.0.1' } })
+    expect(response.status).toBe(500)
+    expect(JSON.parse(response.body)).toEqual({ error: 'status-unavailable' })
+  })
+
+  it.each([new Error('C:\\private\\account.json Bearer arbitrary-private-credential'), 'C:\\private\\account.json Bearer arbitrary-private-credential'])('never exports a billing exception while preserving signed-in status (%s)', async failure => {
+    const port = await startStatusServer({ client: { fetchCredits: async () => { throw failure } } })
+    const response = await requestOnce({ port, method: 'GET', headers: { host: '127.0.0.1' } })
+    expect(response.status).toBe(200)
+    const body = JSON.parse(response.body)
+    expect(body).toMatchObject({ status: 'signed-in', creditsError: 'credits-unavailable' })
+    expect(response.body).not.toContain('private')
+  })
+
   it('serves a same-origin GET without an Origin header', async () => {
     const port = await startStatusServer()
     const response = await requestOnce({ port, method: 'GET', headers: { host: `127.0.0.1:${String(port)}` } })

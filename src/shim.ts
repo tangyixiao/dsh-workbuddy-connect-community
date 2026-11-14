@@ -234,9 +234,9 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
         return
       }
       writeOpenAIError(res, 404, 'not_found', `no such route: ${req.method} ${url}`)
-    } catch (error: unknown) {
+    } catch {
       if (!res.headersSent) {
-        writeOpenAIError(res, 500, 'internal', String(error))
+        writeOpenAIError(res, 500, 'internal', 'WorkBuddy request failed internally')
       } else {
         res.end()
       }
@@ -254,8 +254,8 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
     let credential
     try {
       credential = await store.resolve()
-    } catch (error: unknown) {
-      writeOpenAIError(res, 401, 'not_signed_in', String(error))
+    } catch {
+      writeOpenAIError(res, 401, 'not_signed_in', 'WorkBuddy credentials are unavailable; sign in again')
       return
     }
     const requestAccount = `${credential.uid}:${credential.enterpriseId ?? ''}`
