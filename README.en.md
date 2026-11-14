@@ -25,7 +25,7 @@ Historical upstream screenshot of the model menu; current models, prices and pla
 Desktop: install the release `.tgz` through Extensions → Plugin Management → Add Plugin. For a Web profile you explicitly control:
 
 ```sh
-dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.17
+dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.20
 ```
 
 Sign in to the matching desktop product. Disable the original `dsh-workbuddy-connect` before enabling this community package; they share provider IDs. Use `dsh-workbuddy-connect-community doctor --share` for a redacted diagnostic.
@@ -34,9 +34,9 @@ Sign in to the matching desktop product. Disable the original `dsh-workbuddy-con
 
 | Item | Current source of truth |
 | --- | --- |
-| Source version | `0.1.19` (unreleased candidate) · public install examples still use released `0.1.17` · see [package.json](package.json) |
+| Source version | `0.1.20` · see [package.json](package.json) |
 | Distribution | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
-| DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1` |
+| DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1 \|\| 0.2.2-rc.3` |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |
 | Development | [Open issues](https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues?q=is%3Aissue+is%3Aopen) · [CI](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions) |
 

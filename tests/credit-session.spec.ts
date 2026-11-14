@@ -1,5 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionStore } from '@deepseek-ai/dsh-session'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorkBuddyCreditLog } from '../src/credit-log.ts'
 import { watchWorkBuddyCreditSessions } from '../src/credit-session.ts'
@@ -17,6 +18,8 @@ function assistantEvent(responseId: string, messageId: string): SessionEvent<'as
       step: 1,
       message: {
         id: messageId,
+        role: 'assistant',
+        content: [],
         source: { kind: 'model', provider: 'workbuddy', model: 'model', replayState: { response: { responseId } } },
       },
       stream: [],
@@ -25,6 +28,23 @@ function assistantEvent(responseId: string, messageId: string): SessionEvent<'as
 }
 
 describe('WorkBuddy credit host session lifecycle', () => {
+  it('joins every completed message from a real rc.3 batched Session append', async () => {
+    ctx = new Context()
+    await ctx.plugin(SessionStore)
+    const log = new WorkBuddyCreditLog()
+    await ctx.plugin(pluginCtx => watchWorkBuddyCreditSessions(pluginCtx, [{ provider: 'workbuddy', log }]))
+    const current = ctx.sessions.create()
+    log.observe('batch-a', 0, 'account:')
+    log.observe('batch-b', 3, 'account:')
+    const first = assistantEvent('batch-a', 'message-a')
+    const second = assistantEvent('batch-b', 'message-b')
+    current.append([
+      ['assistant/message', first.data, { surfaceOp: 'append' }],
+      ['assistant/message', second.data, { surfaceOp: 'append' }],
+    ])
+    expect(log.read('workbuddy', 'account:', current.id).credits).toEqual({ 'message-a': 0, 'message-b': 3 })
+  })
+
   it('does not restore disposed or shutdown joins from late host events', async () => {
     ctx = new Context()
     const log = new WorkBuddyCreditLog()
