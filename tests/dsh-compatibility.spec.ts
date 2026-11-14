@@ -7,7 +7,7 @@ const hostRanges = Object.entries(manifest.peerDependencies as Record<string, st
   .filter(([name]) => name.startsWith('@deepseek-ai/dsh-'))
 
 describe('DSH host compatibility', () => {
-  it.each(['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.5', '0.2.2-rc.1'])('accepts %s in the engine and every host peer', (version) => {
+  it.each(['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.5', '0.2.2-rc.1', '0.2.2-rc.3'])('accepts %s in the engine and every host peer', (version) => {
     expect(semver.satisfies(version, manifest.engines.dsh)).toBe(true)
     expect(hostRanges.length).toBeGreaterThan(0)
     for (const [name, range] of hostRanges) {
