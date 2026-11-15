@@ -42,7 +42,7 @@ interface WireMessage {
   tool_call_id?: string
 }
 
-async function wireBody(messages: unknown[]): Promise<WireMessage[]> {
+async function wireRequest(messages: unknown[]): Promise<Record<string, unknown>> {
   let body: Record<string, unknown> | undefined
   vi.stubGlobal('fetch', vi.fn(async (_input: unknown, init?: RequestInit) => {
     body = JSON.parse(String(init?.body)) as Record<string, unknown>
@@ -52,7 +52,13 @@ async function wireBody(messages: unknown[]): Promise<WireMessage[]> {
   for await (const _chunk of call.stream({ provider: WORKBUDDY_PROVIDER, model: MODEL, messages: messages as never })) {
     // The serialized request is the contract under test.
   }
-  return (body?.['messages'] ?? []) as WireMessage[]
+  expect(body).toBeDefined()
+  return body!
+}
+
+async function wireBody(messages: unknown[]): Promise<WireMessage[]> {
+  const body = await wireRequest(messages)
+  return (body['messages'] ?? []) as WireMessage[]
 }
 
 /** The adapter-private replay envelope dsh-llm-pi-ai validates (version 2). */
@@ -114,6 +120,21 @@ function toolResultMessage(id: string, text: string): Record<string, unknown> {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('#57 tool results reach the wire intact', () => {
+  it('omits empty current tools while retaining completed tool history', async () => {
+    // pi-ai 1.5.1 stopped sending tools: [] for history-only tool calls.
+    // WorkBuddy must preserve that history without requiring a current tool list.
+    const body = await wireRequest([
+      { role: 'user', content: [{ type: 'text', text: 'run echo hi' }], source: { kind: 'user' } },
+      assistantToolCalls([{ id: 'call_history', name: 'shell' }]),
+      toolResultMessage('call_history', 'hi'),
+    ])
+    expect(body).not.toHaveProperty('tools')
+    const wire = body['messages'] as WireMessage[]
+    expect(wire.find(message => message.role === 'assistant')?.tool_calls?.[0]?.id).toBe('call_history')
+    expect(wire.find(message => message.role === 'tool')).toMatchObject({ tool_call_id: 'call_history', content: 'hi' })
+    expect(JSON.stringify(wire)).not.toContain('No result provided')
+  })
+
   it('carries a single shell result with matching ids and no synthetic filler', async () => {
     const wire = await wireBody([
       { role: 'user', content: [{ type: 'text', text: 'run echo hi' }], source: { kind: 'user' } },
