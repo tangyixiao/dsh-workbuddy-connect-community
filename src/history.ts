@@ -28,7 +28,7 @@ function nativeReplay(message: GenerateOptions['messages'][number], provider: st
  */
 export function sanitizeWorkBuddyHistory(options: GenerateOptions): GenerateOptions {
   let changed = false
-  const messages = options.messages.flatMap(message => {
+  const messages = options.messages.flatMap<GenerateOptions['messages'][number]>(message => {
     if (message.role !== 'assistant' || !message.content.some(block => block.type === 'reasoning') || nativeReplay(message, options.provider, options.model)) return [message]
     changed = true
     const content = message.content.filter(block => block.type !== 'reasoning')

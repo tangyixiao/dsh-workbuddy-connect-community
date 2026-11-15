@@ -29,6 +29,27 @@ describe('foreign thinking boundary', () => {
     expect(JSON.stringify(input)).toBe(before)
     expect(output.provider).toBe('workbuddy')
   })
+  it('drops reasoning-only turns while preserving mixed message roles and removing stale replay', () => {
+    const input = request('workbuddy', 'other', 'model', replay)
+    const assistant = input.messages[0]
+    if (assistant?.role !== 'assistant') throw new Error('expected assistant history fixture')
+    const thinkingOnly: GenerateOptions['messages'][number] = {
+      ...assistant,
+      content: assistant.content.filter(block => block.type === 'reasoning'),
+    }
+    input.messages = [thinkingOnly, ...input.messages]
+    const before = JSON.stringify(input)
+    const output = sanitizeWorkBuddyHistory(input)
+    expect(output.messages.map(message => message.role)).toEqual(['assistant', 'tool', 'user'])
+    expect(output.messages[0]?.content).toEqual(assistant.content.slice(1))
+    const sanitized = output.messages[0]
+    if (sanitized?.role !== 'assistant') throw new Error('expected retained assistant')
+    expect(sanitized.source).toEqual({ provider: 'other', model: 'model' })
+    expect(sanitized.source).not.toHaveProperty('replayState')
+    expect(output.messages[1]).toBe(input.messages[2])
+    expect(output.messages[2]).toBe(input.messages[3])
+    expect(JSON.stringify(input)).toBe(before)
+  })
   it('preserves native same-model replay and drops foreign-model, malformed and absent replay', () => {
     const own = request('workbuddy', 'workbuddy', 'model', replay)
     expect(sanitizeWorkBuddyHistory(own)).toBe(own)
