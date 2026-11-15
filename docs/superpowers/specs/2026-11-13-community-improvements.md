@@ -1,6 +1,6 @@
 # Community reliability and model controls
 
-The user requested implementation of the improvements discussed in the plugin comparison. Preserve the Community provider IDs, account boundaries, message credit observations, existing UI composition and licenses. Use the existing checkout and dependencies. No new dependencies, automatic account rotation, prompt fingerprint obfuscation, or automatic conversation replay after a failed upstream request.
+Implement the improvements identified in the plugin comparison. Preserve the Community provider IDs, account boundaries, message credit observations, existing UI composition and licenses. Use the existing checkout and dependencies. No new dependencies, automatic account rotation, prompt fingerprint obfuscation, or automatic conversation replay after a failed upstream request.
 
 Deliverables:
 1. Correct Chinese and English installation/version documentation. State single-response credit and platform/live acceptance boundaries precisely. Add an executable acceptance guide and a bounded feature roadmap.
