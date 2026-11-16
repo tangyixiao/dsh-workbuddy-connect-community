@@ -37,6 +37,36 @@ async function fixture(variant: WorkBuddyVariant = CN_VARIANT, options: { fetch?
 }
 
 describe('toolkit runtime account and consent integration', () => {
+  it.each([CN_VARIANT, AI_VARIANT])('projects local usage only for current/saved accounts in $id without fetching credits', async variant => {
+    const f = await fixture(variant)
+    const common = { model: 'hy3', completedAt: Date.now(), credit: 2 }
+    await f.runtime.usage.record({ ...common, account: f.a.id, responseId: 'owner-response' })
+    await f.runtime.usage.record({ ...common, account: f.b.id, responseId: 'saved-response' })
+    await f.runtime.usage.record({ ...common, account: `${variant.region}-${'f'.repeat(32)}`, responseId: 'other-private-response' })
+    const state = await f.runtime.state('key')
+    expect(state.usage?.windows['1'].requests).toBe(2)
+    expect(state.usage?.recent.map(row => row.account).sort()).toEqual([f.a.id, f.b.id].sort())
+    expect(JSON.stringify(state)).not.toMatch(/other-private-response|private-token|private-refresh|owner-a|member-b/u)
+    await f.base.removeAccount(f.b.id)
+    expect((await f.runtime.state('key')).usage?.recent.map(row => row.account)).toEqual([f.a.id])
+    await f.base.followDesktop()
+    await rm(join(f.dir, 'desktop.json'))
+    await rm(join(f.dir, 'own.json'), { force: true })
+    expect((await f.runtime.state('key')).usage).toBeUndefined()
+    expect(f.calls).toEqual([])
+  })
+  it('omits a late usage read after the authorized account snapshot changes', async () => {
+    const f = await fixture()
+    await f.runtime.usage.record({ account: f.b.id, model: 'hy3', responseId: 'removed-account', completedAt: Date.now() })
+    const read = f.runtime.usage.read.bind(f.runtime.usage)
+    vi.spyOn(f.runtime.usage, 'read').mockImplementationOnce(async accounts => {
+      const result = await read(accounts)
+      await f.base.removeAccount(f.b.id)
+      return result
+    })
+    expect((await f.runtime.state('key')).usage).toBeUndefined()
+    expect(f.calls).toEqual([])
+  })
   it.each([CN_VARIANT, AI_VARIANT])('stays default-off without requests or scheduler timers for $id', async variant => {
     const f = await fixture(variant)
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

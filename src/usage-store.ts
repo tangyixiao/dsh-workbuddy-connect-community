@@ -129,12 +129,16 @@ export class WorkBuddyUsageStore {
           this.failure = undefined
         }
       } catch (error) { this.failure = error instanceof UsageStorageError ? error.status : 'storage-unavailable' }
-    }).finally(() => { this.run = undefined })
+    }).finally(() => {
+      this.run = undefined
+      // A request can enqueue between the drain's last check and this microtask.
+      if (this.pending.size > 0 && this.failure === undefined) void this.flush()
+    })
     return this.run
   }
   /** Local-only projection. Callers must supply their owner-authorized account IDs. */
   async read(accounts: readonly string[]): Promise<UsageSummary> {
-    await this.run
+    while (this.run !== undefined) await this.run
     let document = this.empty()
     let status: UsageSummary['status'] = this.failure ?? 'available'
     try { document = await this.load() } catch (error) { status = error instanceof UsageStorageError ? error.status : 'storage-unavailable' }

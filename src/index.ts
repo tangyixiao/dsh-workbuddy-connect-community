@@ -57,6 +57,7 @@ import { CN_VARIANT, WORKBUDDY_VARIANTS, type WorkBuddyVariant } from './variant
 
 export { WORKBUDDY_PROVIDER, WORKBUDDY_STREAM_IDLE_TIMEOUT_MS, createWorkBuddyAdapter, type WorkBuddyAdapter } from './adapter.ts'
 export { createWorkBuddyShim, type WorkBuddyShim } from './shim.ts'
+export { WorkBuddyUsageStore, type WorkBuddyUsageStoreOptions, type UsageRecord, type UsageSummary, type UsageTotals, type UsageWindows } from './usage-store.ts'
 export {
   FALLBACK_WORKBUDDY_AI_MODELS,
   FALLBACK_WORKBUDDY_MODELS,
@@ -626,6 +627,7 @@ async function startVariant(ctx: Context, runtime: VariantRuntime): Promise<bool
     },
     creditEpoch: () => runtime.creditLog.epoch,
     onCreditScoped: (responseId, credit, account, epoch) => runtime.creditLog.observe(responseId, credit, account, epoch),
+    onUsage: record => runtime.toolkit.usage.record(record),
   })
   try {
     await shim.ready

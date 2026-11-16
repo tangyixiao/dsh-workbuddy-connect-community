@@ -17,8 +17,10 @@ import { createCodeBuddyTools } from './codebuddy-tools.ts'
 import { ToolkitToolError, type ToolkitApproval, type ToolkitToolDefinition } from './host-tools.ts'
 import type { ToolkitAction, ToolkitWebState } from './toolkit-types.ts'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
+import { WorkBuddyUsageStore } from './usage-store.ts'
 
 export interface ToolkitCapabilities { tools: boolean; approval: boolean; context: boolean }
+export interface WorkBuddyToolkitRuntimeOptions { usage?: WorkBuddyUsageStore }
 function sameScope(a: MediaScope | undefined, b: MediaScope): boolean { return a?.account === b.account && a.region === b.region && a.revision === b.revision }
 function executable(name: string): string | undefined {
   for (const dir of (process.env['PATH'] ?? '').split(delimiter)) {
@@ -44,6 +46,7 @@ export class WorkBuddyToolkitRuntime {
   readonly view: WorkBuddyCredentialStore
   readonly media: WorkBuddyMediaService
   readonly checkin: WorkBuddyCheckinService
+  readonly usage: WorkBuddyUsageStore
   cached: ToolkitSettings | undefined
   owner: string | undefined
   onChange: () => void = () => {}
@@ -57,8 +60,9 @@ export class WorkBuddyToolkitRuntime {
   private readonly mediaOptions: MediaToolOptions
   private lastCheckin: { owner: string; value: NonNullable<ToolkitWebState['checkin']> } | undefined
   private models: { account: string; at: number; rows: MediaModel[] } | undefined
-  constructor(readonly base: WorkBuddyCredentialStore, readonly variant: WorkBuddyVariant, private readonly client: WorkBuddyUpstreamClient) {
+  constructor(readonly base: WorkBuddyCredentialStore, readonly variant: WorkBuddyVariant, private readonly client: WorkBuddyUpstreamClient, options: WorkBuddyToolkitRuntimeOptions = {}) {
     const statePath = workbuddyVisibilityPath(`${variant.visibilityFilename}.toolkit`)
+    this.usage = options.usage ?? new WorkBuddyUsageStore(`${statePath}.usage`, variant.region)
     this.settings = new ToolkitSettingsStore(statePath, variant.region)
     this.policy = new WorkBuddyAccountPolicy({ base, region: variant.region, settings: primary => this.settings.get(base.accountId(primary)) })
     this.view = this.policy.credentialView()
@@ -156,9 +160,18 @@ export class WorkBuddyToolkitRuntime {
     await this.refresh()
     const decision = await this.policy.current().then(() => this.policy.decision(), () => undefined)
     const accounts = await this.base.listAccounts()
+    const primary = await this.primary()
+    let usage: ToolkitWebState['usage']
+    if (primary !== undefined && primary.account === this.owner && primary.snapshot.controlRevision === accounts.revision) {
+      const candidate = await this.usage.read([primary.account, ...accounts.accounts.map(account => account.id)])
+      // Account removal/switches can happen during an asynchronous local read.
+      const latest = await this.primary()
+      if (latest?.revision === primary.revision) usage = candidate
+    }
     return { provider: this.variant.id, key: controlKey, accounts, ...(this.owner === undefined ? {} : { account: this.owner }),
       ...(this.cached === undefined ? {} : { settings: structuredClone(this.cached) }), capabilities: { ...this.capabilities, cli: codeBuddyInstallation() !== undefined, media: true, checkin: true },
       ...decision === undefined ? {} : { decision }, ...(this.lastCheckin === undefined || this.lastCheckin.owner !== this.owner ? {} : { checkin: this.lastCheckin.value }),
+      ...(usage === undefined ? {} : { usage }),
     }
   }
   async action(action: ToolkitAction): Promise<{ state: string }> {
@@ -196,5 +209,5 @@ export class WorkBuddyToolkitRuntime {
     await this.refresh()
     return { state: 'updated' }
   }
-  dispose(): void { this.stopped = true; this.lifetime.abort(); this.cliLifetime.abort(); this.media.dispose(); this.checkin.dispose() }
+  dispose(): void { this.stopped = true; this.lifetime.abort(); this.cliLifetime.abort(); this.media.dispose(); this.checkin.dispose(); void this.usage.flush() }
 }

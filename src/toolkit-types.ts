@@ -1,5 +1,6 @@
 import type { ManualAccountStatus } from './account-store.ts'
 import type { ToolkitSettings, ToolkitSettingsPatch } from './toolkit-settings.ts'
+import type { UsageSummary } from './usage-store.ts'
 
 export interface ToolkitWebState {
   provider: string
@@ -11,6 +12,7 @@ export interface ToolkitWebState {
   capabilities: { tools: boolean; approval: boolean; context: boolean; cli: boolean; media: boolean; checkin: boolean }
   decision?: { state: string; switches: number; servingAccount?: string }
   checkin?: { state: string; credits?: number; day?: string }
+  usage?: UsageSummary
 }
 
 export type ToolkitAction =
