@@ -31,12 +31,32 @@ async function fixture(variant: WorkBuddyVariant = CN_VARIANT, options: { fetch?
   await writeDesktop('member-b')
   const b = await base.saveCurrentAccount()
   await base.selectAccount(a.id)
-  const client = { fetchMediaModels: async () => { calls.push('media-models'); return [] } } as unknown as WorkBuddyUpstreamClient
+  const client = { fetchMediaModels: async () => { calls.push('media-models'); return [] }, fetchCredits: vi.fn(async () => ({ total: 7, accounts: [] })) } as unknown as WorkBuddyUpstreamClient
   const runtime = new WorkBuddyToolkitRuntime(base, variant, client); runtimes.push(runtime)
-  return { dir, base, runtime, a, b, calls, writeDesktop, statePath: join(dir, `${variant.visibilityFilename}.toolkit`) }
+  return { dir, base, runtime, a, b, calls, client, writeDesktop, statePath: join(dir, `${variant.visibilityFilename}.toolkit`) }
 }
 
 describe('toolkit runtime account and consent integration', () => {
+  it('fetches saved credits only from explicit guarded actions without selecting, and rejects removed late rows', async () => {
+    const f = await fixture()
+    const before = await f.runtime.state('key')
+    expect(before.accountCredits).toEqual({})
+    expect(f.client.fetchCredits).not.toHaveBeenCalled()
+    await f.runtime.action({ action: 'refresh-account-credits', account: f.a.id, revision: before.accounts.revision, id: f.b.id })
+    expect(f.client.fetchCredits).toHaveBeenCalledWith(expect.objectContaining({ uid: 'member-b' }))
+    expect((await f.base.current())?.uid).toBe('owner-a')
+    expect((await f.runtime.state('key')).accountCredits?.[f.b.id]).toMatchObject({ credits: { total: 7 } })
+    expect(f.client.fetchCredits).toHaveBeenCalledTimes(1)
+    await expect(f.runtime.action({ action: 'refresh-account-credits', account: f.b.id, revision: before.accounts.revision })).rejects.toMatchObject({ code: 'account-selection-changed' })
+    let finish!: () => void
+    vi.mocked(f.client.fetchCredits).mockImplementation(async () => { await new Promise<void>(resolve => { finish = resolve }); return { total: 99, accounts: [] } })
+    const pending = f.runtime.action({ action: 'refresh-account-credits', account: f.a.id, revision: before.accounts.revision, id: f.b.id })
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    await f.base.removeAccount(f.b.id)
+    finish(); await pending
+    expect((await f.runtime.state('key')).accountCredits).toEqual({})
+    expect(f.calls).toEqual([])
+  })
   it.each([CN_VARIANT, AI_VARIANT])('projects local usage only for current/saved accounts in $id without fetching credits', async variant => {
     const f = await fixture(variant)
     const common = { model: 'hy3', completedAt: Date.now(), credit: 2 }
@@ -55,7 +75,7 @@ describe('toolkit runtime account and consent integration', () => {
     expect((await f.runtime.state('key')).usage).toBeUndefined()
     expect(f.calls).toEqual([])
   })
-  it('omits a late usage read after the authorized account snapshot changes', async () => {
+  it('rejects the entire stale private projection after the authorized account snapshot changes during a usage read', async () => {
     const f = await fixture()
     await f.runtime.usage.record({ account: f.b.id, model: 'hy3', responseId: 'removed-account', completedAt: Date.now() })
     const read = f.runtime.usage.read.bind(f.runtime.usage)
@@ -64,7 +84,7 @@ describe('toolkit runtime account and consent integration', () => {
       await f.base.removeAccount(f.b.id)
       return result
     })
-    expect((await f.runtime.state('key')).usage).toBeUndefined()
+    await expect(f.runtime.state('key')).rejects.toMatchObject({ code: 'account-selection-changed' })
     expect(f.calls).toEqual([])
   })
   it.each([CN_VARIANT, AI_VARIANT])('stays default-off without requests or scheduler timers for $id', async variant => {

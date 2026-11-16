@@ -1,6 +1,7 @@
 import type { ManualAccountStatus } from './account-store.ts'
 import type { ToolkitSettings, ToolkitSettingsPatch } from './toolkit-settings.ts'
 import type { UsageSummary } from './usage-store.ts'
+import type { AccountCreditOverview } from './account-overview.ts'
 
 export interface ToolkitWebState {
   provider: string
@@ -13,6 +14,7 @@ export interface ToolkitWebState {
   decision?: { state: string; switches: number; servingAccount?: string }
   checkin?: { state: string; credits?: number; day?: string }
   usage?: UsageSummary
+  accountCredits?: Record<string, AccountCreditOverview>
 }
 
 export type ToolkitAction =
@@ -21,6 +23,7 @@ export type ToolkitAction =
   | { action: 'rename-account'; revision: string; id: string; label: string }
   | { action: 'update-settings'; revision: string; account: string; patch: ToolkitSettingsPatch }
   | { action: 'checkin'; revision: string; id: string; account: string }
+  | { action: 'refresh-account-credits'; revision: string; account: string; id?: string }
 
 export function toolkitPath(provider: string): string {
   return `/plugins/dsh-workbuddy-connect/${provider === 'workbuddy-ai' ? 'ai/' : ''}toolkit`

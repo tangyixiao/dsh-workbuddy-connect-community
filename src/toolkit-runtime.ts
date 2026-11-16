@@ -18,6 +18,7 @@ import { ToolkitToolError, type ToolkitApproval, type ToolkitToolDefinition } fr
 import type { ToolkitAction, ToolkitWebState } from './toolkit-types.ts'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { WorkBuddyUsageStore } from './usage-store.ts'
+import { WorkBuddyAccountOverview } from './account-overview.ts'
 
 export interface ToolkitCapabilities { tools: boolean; approval: boolean; context: boolean }
 export interface WorkBuddyToolkitRuntimeOptions { usage?: WorkBuddyUsageStore }
@@ -47,6 +48,7 @@ export class WorkBuddyToolkitRuntime {
   readonly media: WorkBuddyMediaService
   readonly checkin: WorkBuddyCheckinService
   readonly usage: WorkBuddyUsageStore
+  readonly accountOverview: WorkBuddyAccountOverview
   cached: ToolkitSettings | undefined
   owner: string | undefined
   onChange: () => void = () => {}
@@ -66,6 +68,25 @@ export class WorkBuddyToolkitRuntime {
     this.settings = new ToolkitSettingsStore(statePath, variant.region)
     this.policy = new WorkBuddyAccountPolicy({ base, region: variant.region, settings: primary => this.settings.get(base.accountId(primary)) })
     this.view = this.policy.credentialView()
+    this.accountOverview = new WorkBuddyAccountOverview({
+      capture: async () => {
+        const p = await this.primary(); const accounts = await base.listAccounts()
+        if (p === undefined || p.snapshot.controlRevision !== accounts.revision) return undefined
+        return { owner: p.account, revision: p.revision, controlRevision: accounts.revision, ids: accounts.accounts.map(account => account.id) }
+      },
+      resolve: async (id, capture) => {
+        const p = await this.primary()
+        if (p === undefined || p.account !== capture.owner || p.revision !== capture.revision) throw new ToolkitToolError('account-selection-changed')
+        return base.resolveSavedAccount(id, p.snapshot)
+      },
+      current: async (id, credential, capture) => {
+        const p = await this.primary()
+        if (p === undefined || p.account !== capture.owner || p.revision !== capture.revision) return false
+        const current = await base.currentSavedAccount(id, p.snapshot)
+        return JSON.stringify(current) === JSON.stringify(credential)
+      },
+      fetchCredits: credential => client.fetchCredits(credential),
+    })
     const approval: ToolkitApproval = { request: request => this.approval?.request(request) ?? Promise.resolve('unavailable') }
     this.mediaOptions = {
       tasks: new MediaTaskStore(`${statePath}.media`), client: new WorkBuddyMediaClient(),
@@ -162,21 +183,27 @@ export class WorkBuddyToolkitRuntime {
     const accounts = await this.base.listAccounts()
     const primary = await this.primary()
     let usage: ToolkitWebState['usage']
+    let accountCredits: ToolkitWebState['accountCredits']
     if (primary !== undefined && primary.account === this.owner && primary.snapshot.controlRevision === accounts.revision) {
       const candidate = await this.usage.read([primary.account, ...accounts.accounts.map(account => account.id)])
+      const credits = await this.accountOverview.read()
       // Account removal/switches can happen during an asynchronous local read.
       const latest = await this.primary()
-      if (latest?.revision === primary.revision) usage = candidate
+      if (latest?.revision === primary.revision) { usage = candidate; accountCredits = credits }
     }
+    const finalPrimary = await this.primary()
+    if (finalPrimary?.revision !== primary?.revision || finalPrimary?.account !== this.owner || (finalPrimary !== undefined && finalPrimary.snapshot.controlRevision !== accounts.revision)) throw new ToolkitToolError('account-selection-changed')
     return { provider: this.variant.id, key: controlKey, accounts, ...(this.owner === undefined ? {} : { account: this.owner }),
       ...(this.cached === undefined ? {} : { settings: structuredClone(this.cached) }), capabilities: { ...this.capabilities, cli: codeBuddyInstallation() !== undefined, media: true, checkin: true },
       ...decision === undefined ? {} : { decision }, ...(this.lastCheckin === undefined || this.lastCheckin.owner !== this.owner ? {} : { checkin: this.lastCheckin.value }),
       ...(usage === undefined ? {} : { usage }),
+      ...(accountCredits === undefined ? {} : { accountCredits }),
     }
   }
   async action(action: ToolkitAction): Promise<{ state: string }> {
     if (this.stopped) throw new ToolkitToolError('disposed')
     switch (action.action) {
+      case 'refresh-account-credits': await this.accountOverview.refresh(action.account, action.revision, action.id); break
       case 'save-account': await this.base.saveCurrentAccount(action.revision); break
       case 'select-account': await this.base.selectAccount(action.id, action.revision); break
       case 'follow-desktop': await this.base.followDesktop(action.revision); break
@@ -209,5 +236,5 @@ export class WorkBuddyToolkitRuntime {
     await this.refresh()
     return { state: 'updated' }
   }
-  dispose(): void { this.stopped = true; this.lifetime.abort(); this.cliLifetime.abort(); this.media.dispose(); this.checkin.dispose(); void this.usage.flush() }
+  dispose(): void { this.stopped = true; this.lifetime.abort(); this.cliLifetime.abort(); this.media.dispose(); this.checkin.dispose(); this.accountOverview.dispose(); void this.usage.flush() }
 }
