@@ -153,6 +153,52 @@ describe('account and toolkit panel', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('retains the last successful display read-only after transport failure until a valid read', async () => {
+    await mount()
+    const staleHandler = checkbox('images').props.onChange
+    request.mockRejectedValue(new Error('private-network-error'))
+    await act(async () => { button(toolkitEn.toolkitRefresh).props.onClick() })
+    expect(JSON.stringify(view!.toJSON())).toContain('Primary')
+    expect(checkbox('images').props.disabled).toBe(true)
+    const calls = request.mock.calls.length
+    await act(async () => { staleHandler({ currentTarget: { checked: true } }) })
+    expect(request).toHaveBeenCalledTimes(calls)
+    request.mockResolvedValue({ ok: true, status: 200, json: async () => structuredClone(state) })
+    await act(async () => { button(toolkitEn.toolkitRefresh).props.onClick() })
+    expect(checkbox('images').props.disabled).toBe(false)
+  })
+
+  it('retains data read-only when a mutation and its read-back both fail', async () => {
+    await mount()
+    request.mockRejectedValue(new Error('private-network-error'))
+    await act(async () => { checkbox('images').props.onChange({ currentTarget: { checked: true } }) })
+    expect(JSON.stringify(view!.toJSON())).toContain('Primary')
+    expect(checkbox('images').props.disabled).toBe(true)
+    expect(JSON.stringify(view!.toJSON())).toContain(toolkitEn.toolkitUncertain)
+  })
+
+  it.each([401, 403])('clears private state on HTTP %s including a denied mutation', async status => {
+    await mount()
+    request.mockResolvedValue({ ok: false, status })
+    await act(async () => { checkbox('images').props.onChange({ currentTarget: { checked: true } }) })
+    expect(JSON.stringify(view!.toJSON())).not.toContain('Primary')
+    expect(view!.root.findAllByProps({ 'data-toolkit-feature': 'images' })).toHaveLength(0)
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it('aborts and clears old state when provider changes and ignores a late old response', async () => {
+    await mount()
+    let finish!: (value: unknown) => void
+    let signal: AbortSignal | undefined
+    request.mockImplementationOnce((_url: string, init?: RequestInit) => { signal = init?.signal as AbortSignal; return new Promise(resolve => { finish = resolve }) })
+    act(() => { button(toolkitEn.toolkitRefresh).props.onClick() })
+    request.mockResolvedValue({ ok: false, status: 503 })
+    await act(async () => { view!.update(createElement(WorkBuddyToolkitPanel, { provider: 'workbuddy-ai', t: translate })) })
+    expect(signal?.aborted).toBe(true)
+    await act(async () => { finish({ ok: true, json: async () => structuredClone(state) }) })
+    expect(JSON.stringify(view!.toJSON())).not.toContain('Primary')
+  })
+
   it('names the actual serving account and renders real pending/exhausted policy states', async () => {
     let decision = { state: 'serving', switches: 1, servingAccount: b }
     request.mockImplementation(async () => ({ ok: true, json: async () => ({ ...state, decision }) }))
