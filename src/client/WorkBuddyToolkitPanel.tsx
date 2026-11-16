@@ -5,6 +5,10 @@ import type { ToolkitAction, ToolkitWebState } from '../toolkit-types.ts'
 import type { ToolkitSettings, ToolkitSettingsPatch } from '../toolkit-settings.ts'
 import type { SavedAccountSummary } from '../account-store.ts'
 import type { ToolkitLocaleKey } from './toolkit-locales.ts'
+import { validToolkitObservations } from './toolkit-observations.ts'
+import { AccountObservation, ToolkitUsage } from './ToolkitAccountUsage.tsx'
+import type { AccountCreditOverview } from '../account-overview.ts'
+import type { CheckinObservation } from '../checkin-service.ts'
 
 export interface WorkBuddyToolkitPanelProps {
   provider: string
@@ -32,11 +36,12 @@ export function parseToolkitWebState(value: unknown, provider: string): ToolkitW
   const ids = new Set<string>()
   for (const account of accounts['accounts']) {
     if (!object(account) || typeof account['id'] !== 'string' || !expectedId.test(account['id']) || ids.has(account['id'])
-      || typeof account['selected'] !== 'boolean' || typeof account['expiresAtMs'] !== 'number' || !Number.isFinite(account['expiresAtMs'])
+      || account['region'] !== (provider === 'workbuddy-ai' ? 'global' : 'cn') || typeof account['selected'] !== 'boolean' || typeof account['expiresAtMs'] !== 'number' || !Number.isFinite(account['expiresAtMs'])
       || (account['label'] !== undefined && (typeof account['label'] !== 'string' || account['label'].length > 80))) return undefined
     ids.add(account['id'])
   }
   if (value['account'] !== undefined && (typeof value['account'] !== 'string' || !expectedId.test(value['account']))) return undefined
+  if (!validToolkitObservations(value, expectedId, ids)) return undefined
   const settings = value['settings']
   if (settings !== undefined) {
     if (!object(settings) || typeof settings['revision'] !== 'string' || settings['revision'].length === 0 || settings['revision'].length > 80) return undefined
@@ -51,7 +56,10 @@ export function parseToolkitWebState(value: unknown, provider: string): ToolkitW
   }
   const reported = object(value['capabilities']) ? value['capabilities'] : {}
   const capabilities = Object.fromEntries(['tools', 'approval', 'context', 'cli', 'media', 'checkin'].map(key => [key, reported[key] === true]))
-  return { ...value, capabilities } as unknown as ToolkitWebState
+  const parsed: Record<string, unknown> = { ...value, capabilities }
+  // A valid product sign-out replaces private observations while saved inventory remains recoverable.
+  if (value['account'] === undefined) for (const key of ['settings', 'decision', 'checkin', 'usage', 'accountCredits', 'checkinResults']) delete parsed[key]
+  return parsed as unknown as ToolkitWebState
 }
 
 function expiry(account: SavedAccountSummary, t: Translate): string {
@@ -59,8 +67,8 @@ function expiry(account: SavedAccountSummary, t: Translate): string {
   catch { return t('toolkitExpiryUnknown') }
 }
 
-function AccountRow({ account, number, pending, revision, checkin, consentOwner, mutate, t }: {
-  account: SavedAccountSummary; number: number; pending: boolean; revision: string; checkin: boolean; consentOwner: string | undefined; mutate: (action: ToolkitAction) => void; t: Translate
+function AccountRow({ account, number, pending, revision, checkin, overview, result, consentOwner, mutate, t }: {
+  account: SavedAccountSummary; number: number; pending: boolean; revision: string; checkin: boolean; overview: AccountCreditOverview | undefined; result: CheckinObservation | undefined; consentOwner: string | undefined; mutate: (action: ToolkitAction) => void; t: Translate
 }) {
   const [name, setName] = useState(account.label ?? '')
   useEffect(() => { setName(account.label ?? '') }, [account.label])
@@ -69,12 +77,14 @@ function AccountRow({ account, number, pending, revision, checkin, consentOwner,
     <div style={{ ...row, justifyContent: 'space-between' }}>
       <span style={{ color: 'var(--dsw-alias-label-primary)', fontSize: 13, overflowWrap: 'anywhere' }}>{display}{account.selected ? <small style={{ ...small, marginLeft: 8 }}>{t('toolkitSelected')}</small> : null}</span>
       <div style={row}>
+        <button type="button" style={button} aria-label={t('toolkitRefreshCreditsLabel', { name: display })} disabled={pending || consentOwner === undefined} onClick={() => { if (consentOwner !== undefined) mutate({ action: 'refresh-account-credits', id: account.id, revision, account: consentOwner }) }}>{t('toolkitRefreshCredits')}</button>
         <button type="button" style={button} aria-label={t('toolkitUseLabel', { name: display })} disabled={pending || account.selected} onClick={() => { mutate({ action: 'select-account', id: account.id, revision }) }}>{t('toolkitUse')}</button>
         <button type="button" style={button} aria-label={t('toolkitCheckinLabel', { name: display })} disabled={pending || !checkin || consentOwner === undefined} onClick={() => { if (consentOwner !== undefined) mutate({ action: 'checkin', id: account.id, revision, account: consentOwner }) }}>{t('toolkitManualCheckin')}</button>
         <button type="button" style={button} aria-label={t('toolkitRemoveLabel', { name: display })} title={account.selected ? t('toolkitSelectedRemove') : undefined} disabled={pending || account.selected} onClick={() => { mutate({ action: 'remove-account', id: account.id, revision }) }}>{t('toolkitRemove')}</button>
       </div>
     </div>
     <p style={small}>{expiry(account, t)}</p>
+    <AccountObservation overview={overview} checkin={result} name={display} t={t} />
     <form style={row} onSubmit={event => { event.preventDefault(); if (name.trim() && name.trim() !== account.label) mutate({ action: 'rename-account', revision, id: account.id, label: name.trim() }) }}>
       <input style={{ ...input, flex: '1 1 160px' }} aria-label={t('toolkitNameLabel', { name: display })} maxLength={80} value={name} disabled={pending} onChange={event => { setName(event.currentTarget.value) }} />
       <button type="submit" style={button} disabled={pending || name.trim() === '' || name.trim() === account.label}>{t('toolkitRename')}</button>
@@ -205,10 +215,13 @@ export function WorkBuddyToolkitPanel({ provider, t }: WorkBuddyToolkitPanelProp
         <fieldset style={group}><legend style={legend}>{t('toolkitAccounts')}</legend>
           <p style={small}>{t(state.accounts.mode === 'follow-desktop' ? 'toolkitFollowing' : 'toolkitUsingSaved')}</p>
           <div style={row}><button type="button" style={button} disabled={blocked} onClick={() => { mutate({ action: 'save-account', revision: state.accounts.revision }) }}>{t('toolkitSaveAccount')}</button><button type="button" style={button} disabled={blocked || state.accounts.mode === 'follow-desktop'} onClick={() => { mutate({ action: 'follow-desktop', revision: state.accounts.revision }) }}>{t('toolkitFollowDesktop')}</button></div>
-          {state.accounts.accounts.length === 0 ? <p style={small}>{t('toolkitEmptyAccounts')}</p> : state.accounts.accounts.map((account, index) => <AccountRow key={account.id} account={account} number={index + 1} pending={blocked} revision={state.accounts.revision} checkin={state.capabilities.checkin} consentOwner={state.account} mutate={mutate} t={t} />)}
+          <div style={row}><button type="button" style={button} disabled={blocked || state.account === undefined || state.accounts.accounts.length === 0} onClick={() => { if (state.account !== undefined) mutate({ action: 'refresh-account-credits', revision: state.accounts.revision, account: state.account }) }}>{t('toolkitRefreshAllCredits')}</button></div>
+          <p style={small}>{t('toolkitCreditsHint')}</p>
+          {state.accounts.accounts.length === 0 ? <p style={small}>{t('toolkitEmptyAccounts')}</p> : state.accounts.accounts.map((account, index) => <AccountRow key={account.id} account={account} number={index + 1} pending={blocked} revision={state.accounts.revision} checkin={state.capabilities.checkin} overview={state.accountCredits?.[account.id]} result={state.checkinResults?.[account.id]} consentOwner={state.account} mutate={mutate} t={t} />)}
           <p style={small}>{t('toolkitCheckinHint')}</p>
-          {object(state.checkin) ? <p style={small} role="status">{t(state.checkin.state === 'succeeded' ? 'toolkitCheckinSucceeded' : state.checkin.state === 'already-checked-in' ? 'toolkitCheckinAlready' : state.checkin.state === 'not-eligible' ? 'toolkitCheckinIneligible' : state.checkin.state === 'failed' ? 'toolkitCheckinFailed' : 'toolkitCheckinUnknown')}{state.checkin.state === 'succeeded' && typeof state.checkin.credits === 'number' && Number.isFinite(state.checkin.credits) ? ` · ${t('toolkitCheckinCredits', { credits: new Intl.NumberFormat(undefined).format(state.checkin.credits) })}` : ''}</p> : null}
+          {object(state.checkin) && Object.keys(state.checkinResults ?? {}).length === 0 ? <p style={small} role="status">{t(state.checkin.state === 'succeeded' ? 'toolkitCheckinSucceeded' : state.checkin.state === 'already-checked-in' ? 'toolkitCheckinAlready' : state.checkin.state === 'not-eligible' ? 'toolkitCheckinIneligible' : state.checkin.state === 'failed' ? 'toolkitCheckinFailed' : 'toolkitCheckinUnknown')}{state.checkin.state === 'succeeded' && typeof state.checkin.credits === 'number' && Number.isFinite(state.checkin.credits) ? ` · ${t('toolkitCheckinCredits', { credits: new Intl.NumberFormat(undefined).format(state.checkin.credits) })}` : ''}</p> : null}
         </fieldset>
+        <fieldset style={group}><legend style={legend}>{t('toolkitUsageTitle')}</legend><ToolkitUsage usage={state.usage} accounts={state.accounts.accounts} owner={state.account} t={t} /></fieldset>
         <fieldset style={group}><legend style={legend}>{t('toolkitFeatures')}</legend>
           <p style={small}>{t('toolkitCosts')}</p>{controlled ? null : <p style={small}>{t('toolkitNeedsAccount')}</p>}
           {choices.map(feature => <label key={feature.key} style={label}><input type="checkbox" data-toolkit-feature={feature.key} checked={settings?.features[feature.key] === true} disabled={blocked || !controlled || (!settings?.features[feature.key] && !feature.available)} onChange={event => { save({ features: { [feature.key]: event.currentTarget.checked } }) }} /><span>{t(feature.title)}{feature.available ? null : <small style={{ ...small, display: 'block' }}>{feature.key === 'cli' && canCli ? t('toolkitCliConfigureFirst') : t('toolkitUnavailable')}</small>}</span></label>)}

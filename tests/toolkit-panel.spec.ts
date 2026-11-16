@@ -1,11 +1,21 @@
 import { createElement } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { WorkBuddyToolkitPanel } from '../src/client/WorkBuddyToolkitPanel.tsx'
+import { WorkBuddyToolkitPanel, parseToolkitWebState } from '../src/client/WorkBuddyToolkitPanel.tsx'
 import { toolkitEn, type ToolkitLocaleKey } from '../src/client/toolkit-locales.ts'
 
 const a = `cn-${'a'.repeat(32)}`; const b = `cn-${'b'.repeat(32)}`
 const translate = (key: ToolkitLocaleKey, params: Record<string, unknown> = {}): string => Object.entries(params).reduce<string>((value, [name, replacement]) => value.replaceAll(`{${name}}`, String(replacement)), toolkitEn[key])
+const totals = (requests = 2) => ({ requests, knownCreditRequests: 1, unknownCreditRequests: requests - 1, observedCredits: 3 })
+const windows = () => ({ '1': totals(), '7': totals(3), '30': totals(4) })
+function observations() {
+  return {
+    accountCredits: { [a]: { credits: { total: 0, unlimited: true, accounts: [] }, refreshedAt: 1800000000000, error: 'credits-unavailable' }, [b]: { credits: { total: 9, accounts: [], expiry: { within24h: { total: 2, packages: 1 }, within3d: { total: 2, packages: 1 }, within7d: { total: 5, packages: 2 } } } } },
+    checkinResults: { [b]: { account: b, time: 1800000000000, source: 'automatic', outcome: 'unknown' } },
+    checkin: { state: 'succeeded', credits: 999 },
+    usage: { status: 'storage-unavailable', persistence: 'unavailable', coverage: { retentionDays: 31, maxRecords: 5000, maxBytes: 4194304, from: 1800000000000, to: 1800000000100, truncated: true }, windows: windows(), byAccount: [{ account: b, windows: windows() }], byModel: [{ model: 'test-model', windows: windows() }], recent: [{ account: b, model: 'test-model', responseId: 'response-1', completedAt: 1800000000000 }] },
+  }
+}
 function initial() {
   return { provider: 'workbuddy', key: 'private-control-key', account: a,
     accounts: { revision: 'account-revision', mode: 'saved-account', accounts: [{ id: a, region: 'cn', selected: true, label: 'Primary', expiresAtMs: 1900000000000 }, { id: b, region: 'cn', selected: false, label: 'Backup', expiresAtMs: 1900000000000 }] },
@@ -224,5 +234,93 @@ describe('account and toolkit panel', () => {
     await act(async () => { button(toolkitEn.toolkitRefresh).props.onClick() })
     expect(JSON.stringify(view!.toJSON())).toContain(toolkitEn.toolkitCheckinIneligible)
     expect(JSON.stringify(view!.toJSON())).not.toContain(toolkitEn.toolkitCheckinUnknown)
+  })
+
+  it('shows explicit cached quota refresh actions without changing selected account', async () => {
+    request.mockResolvedValue({ ok: true, json: async () => ({ ...state, ...observations() }) })
+    await mount()
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(view!.toJSON())).toContain('Unlimited')
+    expect(JSON.stringify(view!.toJSON())).not.toContain('Available: 0 credits')
+    expect(JSON.stringify(view!.toJSON())).toContain('Expiry information unavailable')
+    expect(JSON.stringify(view!.toJSON())).toContain('Expiring within 24 hours: 2 credits')
+    expect(JSON.stringify(view!.toJSON())).toContain('Expiring within 7 days: 5 credits')
+    await act(async () => { view!.root.findByProps({ 'aria-label': 'Refresh credits for Backup' }).props.onClick() })
+    await act(async () => { button('Refresh all account credits').props.onClick() })
+    const actions = request.mock.calls.filter(call => call[1]?.method === 'POST').map(call => JSON.parse(call[1].body))
+    expect(actions).toEqual([{ action: 'refresh-account-credits', revision: 'account-revision', account: a, id: b }, { action: 'refresh-account-credits', revision: 'account-revision', account: a }])
+  })
+
+  it('names check-in targets and usage rows, changes rolling windows and discloses incomplete history', async () => {
+    request.mockResolvedValue({ ok: true, json: async () => ({ ...state, ...observations() }) })
+    await mount()
+    let rendered = JSON.stringify(view!.toJSON())
+    const checkin = view!.root.findAllByType('p').find(node => node.children.join('').includes('Backup · Automatic check-in'))
+    expect(checkin?.children.join('')).toContain(toolkitEn.toolkitCheckinUnknown)
+    expect(rendered).not.toContain('999')
+    expect(rendered).toContain('2 requests · 3 observed credits · 1 unknown-credit requests')
+    expect(rendered).toContain('Only completed requests observed through this plugin')
+    expect(rendered).toContain('History has been truncated')
+    expect(rendered).toContain('History storage is unavailable')
+    expect(rendered).toContain('response-1')
+    expect(rendered).not.toContain(b)
+    await act(async () => { view!.root.findByProps({ 'aria-label': 'Usage period' }).props.onChange({ currentTarget: { value: '30' } }) })
+    rendered = JSON.stringify(view!.toJSON())
+    expect(rendered).toContain('4 requests · 3 observed credits · 3 unknown-credit requests')
+  })
+
+  it('replaces private statistics with a valid signed-out document but keeps saved-account recovery', async () => {
+    request.mockResolvedValue({ ok: true, json: async () => ({ ...state, ...observations() }) })
+    await mount()
+    const { account: _account, settings: _settings, ...signedOut } = state
+    request.mockResolvedValue({ ok: true, json: async () => signedOut })
+    await act(async () => { button(toolkitEn.toolkitRefresh).props.onClick() })
+    const rendered = JSON.stringify(view!.toJSON())
+    expect(rendered).toContain('Backup')
+    expect(rendered).not.toContain('response-1')
+    expect(rendered).not.toContain('Unlimited')
+    expect(checkbox('images').props.disabled).toBe(true)
+    expect(button('Refresh all account credits').props.disabled).toBe(true)
+  })
+
+  it('validates optional observation bounds and account regions before display', () => {
+    const fixture = () => ({ ...initial(), ...observations() })
+    expect(parseToolkitWebState(fixture(), 'workbuddy')).toBeDefined()
+    expect(parseToolkitWebState({ ...fixture(), accountCredits: { [a]: { credits: { total: 0, accounts: [{ packageName: '', remain: 0, size: 0 }] } } } }, 'workbuddy')).toBeDefined()
+    const invalid: unknown[] = [
+      { ...fixture(), accountCredits: { [a]: { credits: { total: -1, accounts: [] } } } },
+      { ...fixture(), checkinResults: { [b]: { account: a, source: 'automatic', outcome: 'unknown', time: 1 } } },
+      { ...fixture(), usage: { ...observations().usage, recent: Array(101).fill(observations().usage.recent[0]) } },
+      { ...fixture(), usage: { ...observations().usage, byAccount: [{ account: `global-${'a'.repeat(32)}`, windows: windows() }] } },
+      { ...fixture(), usage: { ...observations().usage, windows: { ...windows(), '1': { ...totals(), observedCredits: Infinity } } } },
+      { ...fixture(), checkinResults: { [b]: { account: b, source: ['automatic'], outcome: 'unknown', time: 1 } } },
+      { ...fixture(), usage: { ...observations().usage, status: ['available'] } },
+      { ...fixture(), accountCredits: { [`global-${'a'.repeat(32)}`]: {} } },
+      { ...fixture(), accountCredits: { [a]: { refreshedAt: NaN } } },
+      { ...fixture(), usage: { ...observations().usage, recent: [{ ...observations().usage.recent[0], credit: -1 }] } },
+    ]
+    for (const value of invalid) expect(parseToolkitWebState(value, 'workbuddy')).toBeUndefined()
+  })
+
+  it('renders absent extensions as unknown and keeps an invalid extension refresh read-only', async () => {
+    await mount()
+    expect(JSON.stringify(view!.toJSON())).toContain(toolkitEn.toolkitCreditsUnknown)
+    expect(JSON.stringify(view!.toJSON())).toContain(toolkitEn.toolkitUsageUnavailable)
+    request.mockResolvedValue({ ok: true, json: async () => ({ ...state, usage: { ...observations().usage, recent: Array(101).fill({}) } }) })
+    await act(async () => { button(toolkitEn.toolkitRefresh).props.onClick() })
+    expect(JSON.stringify(view!.toJSON())).toContain('Primary')
+    expect(button('Refresh all account credits').props.disabled).toBe(true)
+  })
+
+  it('renders confirmed zero credits and manual check-in reward without treating unknown as zero', async () => {
+    const extra = observations()
+    request.mockResolvedValue({ ok: true, json: async () => ({ ...state, ...extra, checkinResults: { [b]: { account: b, time: 1800000000000, source: 'manual', outcome: 'succeeded', credit: 0 } }, usage: { ...extra.usage, recent: [...extra.usage.recent, { ...extra.usage.recent[0], responseId: 'response-zero', credit: 0 }] } }) })
+    await mount()
+    const rendered = JSON.stringify(view!.toJSON())
+    expect(rendered).toContain('Confirmed reward: 0 credits')
+    expect(rendered).toContain('Observed: 0 credits')
+    expect(rendered).toContain('Credits unknown')
+    const checkin = view!.root.findAllByType('p').find(node => node.children.join('').includes('Backup · Manual check-in'))
+    expect(checkin?.children.join('')).toContain('Check-in confirmed')
   })
 })
