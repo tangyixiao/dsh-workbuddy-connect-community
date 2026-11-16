@@ -1,14 +1,14 @@
 # Complete toolkit operating guide / 完整工具集操作指南
 
-This guide describes the source candidate targeting **0.1.19**. It is an operating contract, not a release announcement or a record of successful live requests. Read the [main English guide](guide.en.md), [中文主指南](guide.zh-CN.md), [feature boundaries](roadmap.md) and [acceptance record format](acceptance.md) alongside it.
+This guide describes the toolkit in **0.1.21** source. It is an operating contract, not a record of successful live requests. Read the [main English guide](guide.en.md), [中文主指南](guide.zh-CN.md), [feature boundaries](roadmap.md) and [acceptance record format](acceptance.md) alongside it.
 
-本文说明目标版本为 **0.1.19** 的源码候选功能，是操作说明与验收合同，不表示已经发布或真实服务请求已经通过。安装、激活、宿主接线、模拟测试和真实请求分别记录。
+本文说明 **0.1.21** 源码中的工具集，是操作说明与验收合同，不表示真实服务请求已经通过。安装、激活、宿主接线、模拟测试和真实请求分别记录。
 
 | Version / 版本 | What it establishes / 证据边界 |
 | --- | --- |
-| Published stable / 已发布正式版 **0.1.17** | The [stable release](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.17) and [npm version](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.17) remain the published installation baseline. Installing them does not install the toolkit described here. / 仍是公开安装基线，不包含本文对新增工具集的发布承诺。 |
-| Previously activated local candidate / 前一轮本地已激活候选 **0.1.18** | The preceding local candidate is a separate artifact. Its activation does not prove that the upcoming toolkit is installed, published or live-tested. / 前一轮本地候选包的激活不能证明本次工具集已经安装、发布或完成真实请求验收。 |
-| Source candidate / 本轮源码候选 **0.1.19** | Requires a build/package from the exact reviewed commit, its own package hash, and separate installation/activation evidence. / 需记录准确源码提交、包哈希，以及独立安装与激活证据；不能直接套用旧候选包结果。 |
+| Previous published stable / 此前正式版 **0.1.20** | [Release](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.20). Current source is **0.1.21**; exact publication, install and activation evidence remains separate. / 当前源码为 0.1.21，具体发布、安装与激活分别核验。 |
+| Historical candidates / 历史候选 | Earlier 0.1.18/0.1.19 records apply only to their exact artifacts; they do not describe the current installed version. / 历史候选记录只适用于其准确产物，不能作为当前安装版本说明。 |
+| Current source / 当前源码 **0.1.21** | Existing toolkit plus [account credits and retained usage](accounts-and-usage.md). Record the exact source, package hash, installation and activation. / 原有工具集及账号额度、用量留存；记录准确源码、包哈希、安装和激活。 |
 
 ## Start in the existing cards / 从现有卡片开始
 

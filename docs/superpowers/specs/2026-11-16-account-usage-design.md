@@ -6,6 +6,8 @@ Implement the first delivery agreed in the comparison: saved-account credit over
 
 Extend the current toolkit and authenticated routes. Reuse saved-account revision checks, region isolation, fetchCredits, atomic writes and check-in admission. A separate desktop account manager or an official-usage scraper would add unrelated permissions and unsupported API assumptions; neither is in this release. Expiry-based recommendations and policy changes remain a later delivery.
 
+Reference behavior was inspected at WorkBuddy Switch commit `22b318c1f44b335c2222e444abcc2d0f74e160f7`: [per-account credit metadata](https://github.com/changexbc/workbuddy-switch/blob/22b318c1f44b335c2222e444abcc2d0f74e160f7/crates/wb-switch-core/src/modules/credits.rs#L679), [usage source/completeness](https://github.com/changexbc/workbuddy-switch/blob/22b318c1f44b335c2222e444abcc2d0f74e160f7/crates/wb-switch-core/src/modules/official_usage.rs#L762) and [hidden-window refresh control](https://github.com/changexbc/workbuddy-switch/blob/22b318c1f44b335c2222e444abcc2d0f74e160f7/src/lib/use-credit-auto-refresh.ts). This plugin uses its own existing DSH and WorkBuddy integration; reference source inspection does not establish current upstream service availability.
+
 ## Contracts
 
 - Credit overview uses each saved account's credential without selecting it. GET only reads cached overview; an explicit owner action refreshes accounts with at most two requests in flight, no generation or claims. Preserve previous successful values and their timestamps on error. Account revision/region changes invalidate publication of stale results.
