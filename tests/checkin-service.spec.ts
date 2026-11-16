@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { WorkBuddyCheckinClient } from '../src/checkin-client.ts'
-import { WorkBuddyCheckinService, type CheckinObservation } from '../src/checkin-service.ts'
+import { WorkBuddyCheckinService, type CheckinObservation, type CheckinServiceOptions } from '../src/checkin-service.ts'
 import { CheckinAdmissionStore } from '../src/checkin-admission.ts'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -9,14 +9,14 @@ import type { MediaEndpoint } from '../src/media-client.ts'
 
 const credential = { accessToken: 'never-print', refreshToken: '', expiresAtMs: 1, domain: '', uid: 'personal-a', source: 'desktop' as const }
 describe('account-specific check-in observation', () => {
-  function observed() {
+  function observed(options: Partial<CheckinServiceOptions> = {}) {
     const results: CheckinObservation[] = []
     const scope = { region: 'cn' as const, account: workbuddySavedAccountId('cn', credential), revision: 'owner-revision' }
     const client = { query: vi.fn(async () => ({ active: true, todayCheckedIn: false, serverUtcDay: '2026-11-16' })), claim: vi.fn(async () => ({ outcome: 'succeeded' as const, credit: 8 })) }
     const admission = { admit: vi.fn(async () => true), admitManual: vi.fn(async () => true), complete: vi.fn(async () => {}), completeManual: vi.fn(async () => {}) }
     const observeResult = vi.fn(async (result: CheckinObservation) => { results.push(result) })
     const current = vi.fn(async () => true)
-    const service = new WorkBuddyCheckinService({ client: client as unknown as WorkBuddyCheckinClient, admission: admission as unknown as CheckinAdmissionStore, settings: async () => ({ enabled: true, members: [scope.account] }), scopes: async () => [scope], current, resolveAccess: async () => ({ credential }), observeResult, now: () => 123 })
+    const service = new WorkBuddyCheckinService({ client: client as unknown as WorkBuddyCheckinClient, admission: admission as unknown as CheckinAdmissionStore, settings: async () => ({ enabled: true, members: [scope.account] }), scopes: async () => [scope], current, resolveAccess: async () => ({ credential }), observeResult, now: () => 123, ...options })
     return { service, results, client, admission, observeResult, current, scope }
   }
   it('feeds manual and automatic execution through the same safe observation seam', async () => {
@@ -37,6 +37,33 @@ describe('account-specific check-in observation', () => {
     expect(f.client.claim).toHaveBeenCalledTimes(1)
     expect(f.observeResult).toHaveBeenCalledTimes(1)
     expect(f.admission.completeManual).toHaveBeenCalledWith(f.scope.account, 'manual-action-nonce-1', 'succeeded')
+    f.service.dispose()
+  })
+  it('isolates failed observational capture and uses the actual post-refresh credential', async () => {
+    const capture = vi.fn(async () => { throw new Error('private capture failure') })
+    const f = observed({ captureObservationCredential: capture })
+    expect(await f.service.claim(f.scope, { automatic: false, nonce: 'manual-action-nonce-1' }, new AbortController().signal)).toEqual({ outcome: 'succeeded', credit: 8 })
+    expect(f.observeResult).toHaveBeenLastCalledWith(expect.objectContaining({ outcome: 'succeeded' }), f.scope, credential)
+    expect(capture).toHaveBeenCalledTimes(1)
+    expect(f.client.claim).toHaveBeenCalledTimes(1)
+    expect(f.admission.completeManual).toHaveBeenCalledTimes(1)
+    f.service.dispose()
+
+    const g = observed({ captureObservationCredential: async () => ({ ...credential, accessToken: 'before-refresh-private' }) })
+    await g.service.tick()
+    expect(g.observeResult).toHaveBeenLastCalledWith(expect.objectContaining({ outcome: 'succeeded' }), g.scope, credential)
+    expect(g.client.claim).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(g.results)).not.toMatch(/before-refresh-private|never-print/u)
+    g.service.dispose()
+  })
+  it('retains the resolver rejection when the pre-access failure observer throws', async () => {
+    const f = observed({ captureObservationCredential: async () => credential, resolveAccess: async () => { throw new Error('original private resolver failure') } })
+    f.observeResult.mockRejectedValue(new Error('private observation failure'))
+    await expect(f.service.claim(f.scope, { automatic: true }, new AbortController().signal)).rejects.toThrow('original private resolver failure')
+    expect(f.observeResult).toHaveBeenCalledWith({ account: f.scope.account, time: 123, source: 'automatic', outcome: 'failed' }, f.scope, credential)
+    expect(f.client.query).not.toHaveBeenCalled()
+    expect(f.client.claim).not.toHaveBeenCalled()
+    expect(f.admission.admit).not.toHaveBeenCalled()
     f.service.dispose()
   })
   it('reports safe preflight failures while preserving their rejection and never retrying', async () => {

@@ -228,6 +228,55 @@ describe('toolkit runtime account and consent integration', () => {
     expect((await f.runtime.state('key')).checkinResults).toEqual({})
     expect(requests).toHaveLength(2)
   })
+  it.each([false, true])('publishes an automatic resolver failure with prior success %s and no extra transport', async priorSuccess => {
+    const requests: string[] = []
+    const f = await fixture(undefined, { fetch: async url => {
+      const path = String(url); requests.push(path)
+      return Response.json({ code: 0, data: path.includes('daily-checkin') ? { credit: 5 } : { active: true, today_checked_in: false } }, { headers: { date: 'Mon, 16 Nov 2026 12:00:00 GMT' } })
+    } })
+    await f.runtime.settings.update(f.a.id, { automation: { checkin: true, members: [f.b.id] } }, 'initial')
+    vi.spyOn(Date, 'now').mockReturnValue(1)
+    if (priorSuccess) {
+      await f.runtime.checkin.tick()
+      expect((await f.runtime.state('key')).checkinResults?.[f.b.id]).toEqual({ account: f.b.id, time: 1, source: 'automatic', outcome: 'succeeded', credit: 5 })
+    }
+    const beforeRequests = requests.length
+    const resolver = vi.spyOn(f.base, 'resolveSavedAccount').mockRejectedValue(new Error('private resolver refresh token failure'))
+    vi.spyOn(Date, 'now').mockReturnValue(123)
+    await f.runtime.checkin.tick()
+    const state = await f.runtime.state('key')
+    expect(state.checkinResults?.[f.b.id]).toEqual({ account: f.b.id, time: 123, source: 'automatic', outcome: 'failed' })
+    expect(resolver).toHaveBeenCalledTimes(1)
+    expect(requests).toHaveLength(beforeRequests)
+    expect(f.client.fetchCredits).not.toHaveBeenCalled()
+    expect(JSON.stringify(state)).not.toMatch(/private resolver|private-token|private-refresh|credentialRevision|fingerprint/u)
+  })
+  it.each(['removed', 'selection', 'credential'])('drops a late automatic resolver failure after %s change', async mode => {
+    const f = await fixture()
+    await f.runtime.settings.update(f.a.id, { automation: { checkin: true, members: [f.b.id] } }, 'initial')
+    const before = await f.runtime.primary()
+    const writer = new WorkBuddyAccountStore(`${f.base.ownAuthPath()}.accounts.json`, 'cn')
+    const target = await writer.saved(f.b.id, before!.snapshot)
+    let finish!: () => void
+    vi.spyOn(f.base, 'resolveSavedAccount').mockImplementation(async () => {
+      await new Promise<void>(resolve => { finish = resolve })
+      throw new Error('private late resolver failure')
+    })
+    const pending = f.runtime.checkin.tick()
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    if (mode === 'removed') await f.base.removeAccount(f.b.id)
+    else if (mode === 'selection') await f.base.selectAccount(f.b.id)
+    else {
+      await writer.commitSavedRefresh(target, { ...target.credential, accessToken: 'rotated-private-token' })
+      expect((await f.runtime.primary())?.revision).toBe(before?.revision)
+    }
+    finish(); await pending
+    const state = await f.runtime.state('key')
+    expect(state.checkinResults).toEqual({})
+    expect(state.checkin).toBeUndefined()
+    expect(f.calls).toEqual([])
+    expect(JSON.stringify(state)).not.toMatch(/private late|rotated-private/u)
+  })
   it('keeps automatic unknown per account across duplicate admission and prunes removed accounts', async () => {
     let claims = 0
     const f = await fixture(undefined, { fetch: async url => {

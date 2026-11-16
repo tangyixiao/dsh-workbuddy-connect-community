@@ -14,6 +14,8 @@ export interface CheckinServiceOptions {
   current(scope: MediaScope): Promise<boolean>
   resolveAccess(scope: MediaScope, signal: AbortSignal): Promise<CheckinAccess>
   intervalMs?: number
+  /** Read-only pre-access fallback; capture failure must not affect claim execution. */
+  captureObservationCredential?(scope: MediaScope): Promise<Readonly<WorkBuddyCredential> | undefined>
   /** Private execution context only; never retained in an observation or web/durable projection. */
   observeResult?(result: CheckinObservation, scope: MediaScope, credential?: Readonly<WorkBuddyCredential>): void | Promise<void>
   now?(): number
@@ -78,6 +80,10 @@ export class WorkBuddyCheckinService {
     const config = await this.options.settings()
     if (action.automatic && !config.enabled) return { outcome: 'disabled' }
     if (action.automatic && !config.members.includes(scope.account)) return { outcome: 'not-eligible' }
+    try {
+      const credential = await this.options.captureObservationCredential?.(scope)
+      if (credential !== undefined) execution.credential = { ...credential }
+    } catch { /* Observational reads cannot prevent or retry the original claim. */ }
     const active = AbortSignal.any([signal, this.controller.signal])
     const access = await this.access(scope, active)
     // Capture after the intentional saved-token refresh, before query/submission can yield.

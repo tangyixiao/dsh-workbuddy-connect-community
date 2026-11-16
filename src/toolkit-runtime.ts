@@ -116,6 +116,12 @@ export class WorkBuddyToolkitRuntime {
         const credential = await base.resolveSavedAccount(scope.account, p.snapshot)
         return { credential }
       },
+      captureObservationCredential: async scope => {
+        const p = await this.primary()
+        if (p === undefined || p.revision !== scope.revision || scope.region !== variant.region) return undefined
+        // Local saved credential only: a failed refresh can still be reported for this unchanged target.
+        return base.currentSavedAccount(scope.account, p.snapshot)
+      },
       observeResult: async (result, scope, credential) => {
         const p = await this.primary()
         if (this.stopped || credential === undefined || p === undefined || p.revision !== scope.revision || scope.region !== variant.region) return
