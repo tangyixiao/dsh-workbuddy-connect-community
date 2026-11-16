@@ -121,10 +121,11 @@ export class WorkBuddyToolkitRuntime {
         if (this.stopped || credential === undefined || p === undefined || p.revision !== scope.revision || scope.region !== variant.region) return
         const accounts = await base.listAccounts()
         if (p.snapshot.controlRevision !== accounts.revision || !accounts.accounts.some(account => account.id === result.account)) return
-        const current = await base.currentSavedAccount(result.account, p.snapshot)
-        if (JSON.stringify(current) !== JSON.stringify(credential)) return
         const latest = await this.primary()
         if (latest?.revision !== p.revision) return
+        // The target lookup is the final async guard; publish synchronously after comparison.
+        const current = await base.currentSavedAccount(result.account, latest.snapshot)
+        if (JSON.stringify(current) !== JSON.stringify(credential)) return
         this.checkinResults.delete(result.account)
         this.checkinResults.set(result.account, { owner: p.account, value: { ...result } })
         while (this.checkinResults.size > 100) this.checkinResults.delete(this.checkinResults.keys().next().value!)

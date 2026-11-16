@@ -280,4 +280,33 @@ describe('toolkit runtime account and consent integration', () => {
     expect(state.checkin).toBeUndefined()
     expect(JSON.stringify(state)).not.toContain('rotated-private')
   })
+  it('checks the target credential after the observer final owner reread yields to a member-only rotation', async () => {
+    let finish!: () => void
+    const f = await fixture(undefined, { fetch: async url => {
+      if (String(url).includes('daily-checkin')) { await new Promise<void>(resolve => { finish = resolve }); return Response.json({ code: 0, data: { credit: 9 } }) }
+      return Response.json({ code: 0, data: { active: true, today_checked_in: false } })
+    } })
+    const primary = f.runtime.primary.bind(f.runtime)
+    const before = await primary()
+    const writer = new WorkBuddyAccountStore(`${f.base.ownAuthPath()}.accounts.json`, 'cn')
+    const target = await writer.saved(f.b.id, before!.snapshot)
+    const pending = f.runtime.action({ action: 'checkin', id: f.b.id, account: f.a.id, revision: before!.snapshot.controlRevision })
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    let observerOwnerReads = 0; let rotated = false
+    vi.spyOn(f.runtime, 'primary').mockImplementation(async () => {
+      const owner = await primary()
+      // Once submission is held, the next two owner reads belong to result observation.
+      if (++observerOwnerReads === 2) {
+        await writer.commitSavedRefresh(target, { ...target.credential, accessToken: 'final-read-private-token' })
+        rotated = true
+      }
+      return owner
+    })
+    finish(); await pending
+    expect(rotated).toBe(true)
+    expect((await primary())?.revision).toBe(before?.revision)
+    const state = await f.runtime.state('key')
+    expect(state.checkinResults).toEqual({})
+    expect(state.checkin).toBeUndefined()
+  })
 })
