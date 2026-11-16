@@ -1,5 +1,6 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorkBuddyUsageStore, type UsageRecord } from '../src/usage-store.ts'
 
@@ -45,6 +46,59 @@ describe('bounded durable observed usage', () => {
     expect(value.recent.map(item => item.responseId)).toEqual(['4', '3', '2'])
     expect(value.coverage).toMatchObject({ retentionDays: 31, maxRecords: 3, truncated: true, from: now - 3 })
     expect(JSON.parse(await readFile(f.path, 'utf8')).records).toHaveLength(3)
+  })
+  it('physically prunes expired history after idle restart and read without another generation', async () => {
+    const f = await fixture()
+    await f.store.record(row('idle-history'))
+    const reopened = new WorkBuddyUsageStore(f.path, 'cn', { now: () => now + 31 * DAY + 1 })
+    const summary = await reopened.read([account])
+    expect(summary).toMatchObject({ status: 'available', persistence: 'persisted', recent: [] })
+    expect(JSON.parse(await readFile(f.path, 'utf8')).records).toEqual([])
+  })
+  it('does not rewrite an unchanged history during repeated maintenance reads', async () => {
+    const f = await fixture()
+    await f.store.record(row('retained'))
+    await utimes(f.path, new Date('2000-01-01T00:00:00Z'), new Date('2000-01-01T00:00:00Z'))
+    const originalTime = (await stat(f.path)).mtimeMs
+    await f.store.read([account]); await f.store.read([account])
+    expect((await stat(f.path)).mtimeMs).toBe(originalTime)
+    expect(JSON.parse(await readFile(f.path, 'utf8')).records).toEqual([row('retained')])
+  })
+  it.each(['new-record', 'already-pruned', 'corrupt-history'])('re-reads under the maintenance lock and preserves a concurrent %s', async update => {
+    const f = await fixture()
+    await f.store.record(row('expired-before-lock'))
+    const future = now + 31 * DAY + 1
+    let inspected!: () => void
+    let acquired!: () => void
+    let release!: () => void
+    const inspecting = new Promise<void>(resolve => { inspected = resolve })
+    const holding = new Promise<void>(resolve => { acquired = resolve })
+    const releasing = new Promise<void>(resolve => { release = resolve })
+    const reopened = new WorkBuddyUsageStore(f.path, 'cn', { now: () => { inspected(); return future } })
+    const lock = withFileLock(f.path, async () => {
+      acquired(); await releasing
+      const contents = update === 'corrupt-history' ? '{concurrent-private-corruption' : JSON.stringify({
+        version: 1, region: 'cn', truncated: false,
+        records: [...(update === 'already-pruned' ? [] : [row('expired-before-lock')]), row('fresh-concurrent-write', { completedAt: future })],
+      })
+      await writeFileAtomic(f.path, contents, { mode: 0o600, dirMode: 0o700 })
+      if (update === 'already-pruned') await utimes(f.path, new Date('2000-01-01T00:00:00Z'), new Date('2000-01-01T00:00:00Z'))
+    })
+    await holding
+    const reading = reopened.read([account])
+    await inspecting
+    release(); await lock
+    const summary = await reading
+    const contents = await readFile(f.path, 'utf8')
+    if (update === 'corrupt-history') {
+      expect(summary).toMatchObject({ status: 'history-invalid', persistence: 'unavailable' })
+      expect(contents).toBe('{concurrent-private-corruption')
+      expect(JSON.stringify(summary)).not.toContain('private-corruption')
+    } else {
+      expect(summary.recent.map(value => value.responseId)).toEqual(['fresh-concurrent-write'])
+      expect(JSON.parse(contents).records).toEqual([row('fresh-concurrent-write', { completedAt: future })])
+      if (update === 'already-pruned') expect((await stat(f.path)).mtimeMs).toBe(Date.parse('2000-01-01T00:00:00Z'))
+    }
   })
   it('caps bytes and 100 recent details while keeping complete bounded aggregates', async () => {
     const f = await fixture({ maxBytes: 1024 })

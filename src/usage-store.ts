@@ -89,6 +89,22 @@ export class WorkBuddyUsageStore {
       return { version: 1, region: this.region, truncated: value.truncated, records: value.records.map(copy) }
     } catch { throw new UsageStorageError('history-invalid') }
   }
+  /** Idle histories must age out on disk too; never write a lock-free snapshot. */
+  private async loadRetained(): Promise<UsageDocument> {
+    const observed = await this.load()
+    const observedCutoff = this.now() - 31 * DAY
+    if (!observed.records.some(row => row.completedAt < observedCutoff)) return observed
+    return await withFileLock(this.path, async () => {
+      const latest = await this.load()
+      const cutoff = this.now() - 31 * DAY
+      const records = latest.records.filter(row => row.completedAt >= cutoff)
+      // Another writer may already have pruned; leave an unchanged file alone.
+      if (records.length === latest.records.length) return latest
+      const retained = { ...latest, records }
+      await writeFileAtomic(this.path, `${JSON.stringify(retained)}\n`, { mode: 0o600, dirMode: 0o700 })
+      return retained
+    })
+  }
   private bounded(document: UsageDocument, additions: Iterable<UsageRecord>): UsageDocument {
     const cutoff = this.now() - 31 * DAY
     const records = new Map<string, UsageRecord>()
@@ -136,12 +152,12 @@ export class WorkBuddyUsageStore {
     })
     return this.run
   }
-  /** Local-only projection. Callers must supply their owner-authorized account IDs. */
+  /** Local-only retained projection. Callers supply owner-authorized account IDs. */
   async read(accounts: readonly string[]): Promise<UsageSummary> {
     while (this.run !== undefined) await this.run
     let document = this.empty()
     let status: UsageSummary['status'] = this.failure ?? 'available'
-    try { document = await this.load() } catch (error) { status = error instanceof UsageStorageError ? error.status : 'storage-unavailable' }
+    try { document = await this.loadRetained() } catch (error) { status = error instanceof UsageStorageError ? error.status : 'storage-unavailable' }
     const bounded = this.bounded(document, this.pending.values())
     const allowed = new Set(accounts)
     const records = bounded.records.filter(row => allowed.has(row.account))
