@@ -14,6 +14,14 @@ Work from the repository root. Reuse dependencies when compatible; a fresh depen
 
 Keep useful technical guidance in docs, English/Chinese README entry pages aligned, and the existing software/upstream/artwork licenses intact. See [maintenance](docs/maintenance.md) and [AGENTS.md](AGENTS.md) for resource budgets and cleanup.
 
+## Test coverage / 测试覆盖率
+
+Run `pnpm run test:coverage` to generate a summary, `coverage/lcov.info`, and a local HTML report at `coverage/index.html`. Coverage includes all TypeScript source files under `src/`, including files not imported by the tests. Generated reports stay outside version control.
+
+Linux CI collects coverage during the existing test run. A separate job uploads only the LCOV report to Codecov using GitHub OIDC, without a stored upload token or running project code in the upload job. Fork PRs still generate the report but skip the authenticated upload. Codecov feedback is informational while the initial baseline is established.
+
+运行 `pnpm run test:coverage` 可查看覆盖率摘要和本地 HTML 报告；报告包含 `src/` 中未被测试导入的源码。CI 通过独立任务上传 LCOV 报告，使用短期 OIDC 身份，不保存长期上传令牌。Fork PR 生成报告但跳过上传；接入初期只提供覆盖率反馈，不设置覆盖率合并门槛。
+
 ## Dependency updates and co-authorship / 依赖更新与联合署名
 
 Keep Dependabot as the source of its dependency update PR. Record the maintainer's actual review, validation and any fixes in the PR, and attribute authorship to actual contributions.

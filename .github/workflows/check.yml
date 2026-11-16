@@ -36,7 +36,45 @@ jobs:
         run: |
           pnpm run typecheck
           pnpm run build
-          timeout --signal=TERM --kill-after=15s 8m pnpm exec vitest run --reporter=verbose
+          timeout --signal=TERM --kill-after=15s 8m pnpm run test:coverage --reporter=verbose
           pnpm run check-release
       - if: runner.os != 'Linux'
         run: pnpm run check
+      - name: Save coverage report
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 7
+
+  coverage:
+    name: Upload coverage to Codecov
+    needs: check
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage-lcov
+          path: coverage
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          use_oidc: true
+          files: coverage/lcov.info
+          disable_search: true
+          network_filter: src/
+          plugins: noop
+          disable_telem: true
+          cleanup: true
+          fail_ci_if_error: true
+          flags: unittests
+          name: vitest-ubuntu

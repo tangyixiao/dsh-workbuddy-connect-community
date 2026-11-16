@@ -25,6 +25,7 @@
     "prepack": "pnpm run build && pnpm run check-release",
     "build": "tsdown",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage --maxWorkers=4",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
     "check-release": "node scripts/check-release.mjs",
     "check": "pnpm run typecheck && pnpm run build && pnpm run test && pnpm run check-release"
@@ -135,6 +136,7 @@
     "@types/react-dom": "~18.3.7",
     "@types/react-test-renderer": "^18.3.1",
     "@types/semver": "^7.8.0",
+    "@vitest/coverage-v8": "4.1.12",
     "jsdom": "^26.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.3.1",
