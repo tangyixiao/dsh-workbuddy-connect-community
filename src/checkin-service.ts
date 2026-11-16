@@ -13,8 +13,17 @@ export interface CheckinServiceOptions {
   current(scope: MediaScope): Promise<boolean>
   resolveAccess(scope: MediaScope, signal: AbortSignal): Promise<CheckinAccess>
   intervalMs?: number
+  observeResult?(result: CheckinObservation, scope: MediaScope): void | Promise<void>
+  now?(): number
 }
 export type CheckinServiceResult = CheckinClaim | { outcome: 'disabled' | 'not-eligible' | 'already-checked-in' | 'day-unavailable' | 'already-admitted' }
+export interface CheckinObservation {
+  account: string
+  time: number
+  source: 'manual' | 'automatic'
+  outcome: CheckinServiceResult['outcome']
+  credit?: number
+}
 
 /** Bounded opt-in scheduler; manual action uses the same durable unknown-before-write guard. */
 export class WorkBuddyCheckinService {
@@ -37,9 +46,29 @@ export class WorkBuddyCheckinService {
       || (!action.automatic && (typeof action.nonce !== 'string' || !/^[a-zA-Z0-9_-]{16,128}$/u.test(action.nonce)))) throw new ToolkitToolError('invalid-checkin-nonce')
     const key = `${scope.region}:${scope.account}`
     if (this.claims.has(key)) return { outcome: 'already-admitted' }
-    const operation = this.performClaim(scope, action, signal)
+    const operation = this.observedClaim(scope, action, signal)
     this.claims.set(key, operation)
     try { return await operation } finally { this.claims.delete(key) }
+  }
+  private async observedClaim(scope: MediaScope, action: { automatic: boolean, nonce?: string }, signal: AbortSignal): Promise<CheckinServiceResult> {
+    let result: CheckinServiceResult
+    try { result = await this.performClaim(scope, action, signal) }
+    catch (error) {
+      // Before submission, a failed access/status/admission read is definitely not an awarded claim.
+      await this.observe(scope, action.automatic, { outcome: 'failed' })
+      throw error
+    }
+    // A duplicate is an admission decision, never a new outcome replacing an uncertain/successful claim.
+    if (result.outcome !== 'already-admitted') await this.observe(scope, action.automatic, result)
+    return result
+  }
+  private async observe(scope: MediaScope, automatic: boolean, result: CheckinServiceResult): Promise<void> {
+    try {
+      const credit = 'credit' in result ? result.credit : undefined
+      await this.options.observeResult?.({ account: scope.account, time: (this.options.now ?? Date.now)(), source: automatic ? 'automatic' : 'manual', outcome: result.outcome,
+        ...(typeof credit === 'number' && Number.isFinite(credit) && credit >= 0 ? { credit } : {}),
+      }, scope)
+    } catch { /* Observation cannot change admission, completion, retry or caller semantics. */ }
   }
   private async performClaim(scope: MediaScope, action: { automatic: boolean, nonce?: string }, signal: AbortSignal): Promise<CheckinServiceResult> {
     if (this.disposed) return { outcome: 'disabled' }

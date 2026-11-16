@@ -220,9 +220,42 @@ describe('toolkit runtime account and consent integration', () => {
     await f.runtime.action({ action: 'checkin', id: f.a.id, account: f.a.id, revision: (await f.base.listAccounts()).revision })
     expect((await f.runtime.settings.get(f.a.id)).automation).toMatchObject({ checkin: false, members: [] })
     expect((await f.runtime.state('key')).checkin).toEqual({ state: 'succeeded', credits: 5 })
+    expect((await f.runtime.state('key')).checkinResults?.[f.a.id]).toMatchObject({ account: f.a.id, source: 'manual', outcome: 'succeeded', credit: 5 })
     expect(requests).toHaveLength(2)
     await f.base.selectAccount(f.b.id)
     expect((await f.runtime.state('key')).checkin).toBeUndefined()
+    expect((await f.runtime.state('key')).checkinResults).toEqual({})
     expect(requests).toHaveLength(2)
+  })
+  it('keeps automatic unknown per account across duplicate admission and prunes removed accounts', async () => {
+    let claims = 0
+    const f = await fixture(undefined, { fetch: async url => {
+      if (String(url).includes('daily-checkin')) { claims++; throw new Error('private uncertain submission') }
+      return Response.json({ code: 0, data: { active: true, today_checked_in: false } }, { headers: { date: 'Mon, 16 Nov 2026 12:00:00 GMT' } })
+    } })
+    await f.runtime.settings.update(f.a.id, { automation: { checkin: true, members: [f.b.id] } }, 'initial')
+    await f.runtime.checkin.tick()
+    const first = (await f.runtime.state('key')).checkinResults?.[f.b.id]
+    expect(first).toMatchObject({ account: f.b.id, source: 'automatic', outcome: 'unknown' })
+    await f.runtime.checkin.tick()
+    expect((await f.runtime.state('key')).checkinResults?.[f.b.id]).toEqual(first)
+    expect(claims).toBe(1)
+    await f.base.removeAccount(f.b.id)
+    expect((await f.runtime.state('key')).checkinResults).toEqual({})
+  })
+  it.each(['removed', 'selection'])('drops a late check-in result after %s scope change', async mode => {
+    let finish!: () => void
+    const f = await fixture(undefined, { fetch: async url => {
+      if (String(url).includes('daily-checkin')) { await new Promise<void>(resolve => { finish = resolve }); return Response.json({ code: 0, data: { credit: 9 } }) }
+      return Response.json({ code: 0, data: { active: true, today_checked_in: false } })
+    } })
+    const pending = f.runtime.action({ action: 'checkin', id: f.b.id, account: f.a.id, revision: (await f.base.listAccounts()).revision })
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    if (mode === 'removed') await f.base.removeAccount(f.b.id)
+    else await f.base.selectAccount(f.b.id)
+    finish(); await pending
+    const state = await f.runtime.state('key')
+    expect(state.checkinResults).toEqual({})
+    expect(state.checkin).toBeUndefined()
   })
 })
