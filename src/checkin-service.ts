@@ -4,6 +4,7 @@ import type { CheckinAccess, CheckinClaim, CheckinStatus, WorkBuddyCheckinClient
 import type { MediaScope } from './media-client.ts'
 import { regionOf } from './upstream.ts'
 import { workbuddySavedAccountId } from './account-store.ts'
+import type { WorkBuddyCredential } from './auth.ts'
 
 export interface CheckinServiceOptions {
   client: WorkBuddyCheckinClient
@@ -13,7 +14,8 @@ export interface CheckinServiceOptions {
   current(scope: MediaScope): Promise<boolean>
   resolveAccess(scope: MediaScope, signal: AbortSignal): Promise<CheckinAccess>
   intervalMs?: number
-  observeResult?(result: CheckinObservation, scope: MediaScope): void | Promise<void>
+  /** Private execution context only; never retained in an observation or web/durable projection. */
+  observeResult?(result: CheckinObservation, scope: MediaScope, credential?: Readonly<WorkBuddyCredential>): void | Promise<void>
   now?(): number
 }
 export type CheckinServiceResult = CheckinClaim | { outcome: 'disabled' | 'not-eligible' | 'already-checked-in' | 'day-unavailable' | 'already-admitted' }
@@ -51,32 +53,35 @@ export class WorkBuddyCheckinService {
     try { return await operation } finally { this.claims.delete(key) }
   }
   private async observedClaim(scope: MediaScope, action: { automatic: boolean, nonce?: string }, signal: AbortSignal): Promise<CheckinServiceResult> {
+    const execution: { credential?: WorkBuddyCredential } = {}
     let result: CheckinServiceResult
-    try { result = await this.performClaim(scope, action, signal) }
+    try { result = await this.performClaim(scope, action, signal, execution) }
     catch (error) {
       // Before submission, a failed access/status/admission read is definitely not an awarded claim.
-      await this.observe(scope, action.automatic, { outcome: 'failed' })
+      await this.observe(scope, action.automatic, { outcome: 'failed' }, execution.credential)
       throw error
     }
     // A duplicate is an admission decision, never a new outcome replacing an uncertain/successful claim.
-    if (result.outcome !== 'already-admitted') await this.observe(scope, action.automatic, result)
+    if (result.outcome !== 'already-admitted') await this.observe(scope, action.automatic, result, execution.credential)
     return result
   }
-  private async observe(scope: MediaScope, automatic: boolean, result: CheckinServiceResult): Promise<void> {
+  private async observe(scope: MediaScope, automatic: boolean, result: CheckinServiceResult, credential: Readonly<WorkBuddyCredential> | undefined): Promise<void> {
     try {
       const credit = 'credit' in result ? result.credit : undefined
       await this.options.observeResult?.({ account: scope.account, time: (this.options.now ?? Date.now)(), source: automatic ? 'automatic' : 'manual', outcome: result.outcome,
         ...(typeof credit === 'number' && Number.isFinite(credit) && credit >= 0 ? { credit } : {}),
-      }, scope)
+      }, scope, credential)
     } catch { /* Observation cannot change admission, completion, retry or caller semantics. */ }
   }
-  private async performClaim(scope: MediaScope, action: { automatic: boolean, nonce?: string }, signal: AbortSignal): Promise<CheckinServiceResult> {
+  private async performClaim(scope: MediaScope, action: { automatic: boolean, nonce?: string }, signal: AbortSignal, execution: { credential?: WorkBuddyCredential }): Promise<CheckinServiceResult> {
     if (this.disposed) return { outcome: 'disabled' }
     const config = await this.options.settings()
     if (action.automatic && !config.enabled) return { outcome: 'disabled' }
     if (action.automatic && !config.members.includes(scope.account)) return { outcome: 'not-eligible' }
     const active = AbortSignal.any([signal, this.controller.signal])
     const access = await this.access(scope, active)
+    // Capture after the intentional saved-token refresh, before query/submission can yield.
+    execution.credential = { ...access.credential }
     if (access.credential.enterpriseId) return { outcome: 'not-eligible' }
     const status = await this.options.client.query(access, active)
     if (!status.active) return { outcome: 'not-eligible' }

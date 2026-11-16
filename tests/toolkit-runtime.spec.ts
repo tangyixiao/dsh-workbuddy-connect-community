@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WorkBuddyCredentialStore } from '../src/auth.ts'
+import { WorkBuddyAccountStore } from '../src/account-store.ts'
 import { WorkBuddyToolkitRuntime } from '../src/toolkit-runtime.ts'
 import { CN_VARIANT, AI_VARIANT, type WorkBuddyVariant } from '../src/variants.ts'
 import { ToolkitSettingsStore } from '../src/toolkit-settings.ts'
@@ -257,5 +258,26 @@ describe('toolkit runtime account and consent integration', () => {
     const state = await f.runtime.state('key')
     expect(state.checkinResults).toEqual({})
     expect(state.checkin).toBeUndefined()
+  })
+  it('drops an old member check-in observation after credential-only rotation without selection/control changes', async () => {
+    let finish!: () => void
+    const f = await fixture(undefined, { fetch: async url => {
+      if (String(url).includes('daily-checkin')) { await new Promise<void>(resolve => { finish = resolve }); return Response.json({ code: 0, data: { credit: 9 } }) }
+      return Response.json({ code: 0, data: { active: true, today_checked_in: false } })
+    } })
+    const before = await f.runtime.primary()
+    const writer = new WorkBuddyAccountStore(`${f.base.ownAuthPath()}.accounts.json`, 'cn')
+    const target = await writer.saved(f.b.id, before!.snapshot)
+    const pending = f.runtime.action({ action: 'checkin', id: f.b.id, account: f.a.id, revision: before!.snapshot.controlRevision })
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    await writer.commitSavedRefresh(target, { ...target.credential, accessToken: 'rotated-private-token', refreshToken: 'rotated-private-refresh' })
+    const afterRotation = await f.runtime.primary()
+    expect(afterRotation?.revision).toBe(before?.revision)
+    expect(afterRotation?.snapshot.controlRevision).toBe(before?.snapshot.controlRevision)
+    finish(); await pending
+    const state = await f.runtime.state('key')
+    expect(state.checkinResults).toEqual({})
+    expect(state.checkin).toBeUndefined()
+    expect(JSON.stringify(state)).not.toContain('rotated-private')
   })
 })

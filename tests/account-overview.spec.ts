@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WorkBuddyAccountOverview, type AccountOverviewCapture } from '../src/account-overview.ts'
 import type { WorkBuddyCredential } from '../src/auth.ts'
+import { WorkBuddyUpstreamClient, type WorkBuddyCredits } from '../src/upstream.ts'
+
+afterEach(() => vi.unstubAllGlobals())
 
 const owner = 'cn-' + 'a'.repeat(32)
 const ids = [owner, 'cn-' + 'b'.repeat(32), 'cn-' + 'c'.repeat(32)]
@@ -9,11 +12,24 @@ function fixture() {
   let now = 100
   let current = true
   const resolve = vi.fn(async (id: string) => ({ uid: id, accessToken: 'secret', refreshToken: '', expiresAtMs: 1, domain: '', source: 'dsh' as const }))
-  const fetch = vi.fn(async (_credential: WorkBuddyCredential) => ({ total: 5, accounts: [] }))
+  const fetch = vi.fn(async (_credential: WorkBuddyCredential): Promise<WorkBuddyCredits> => ({ total: 5, accounts: [] }))
   const service = new WorkBuddyAccountOverview({ capture: async () => capture, resolve, current: async (_id, _credential, expected) => current && capture?.revision === expected.revision && capture.ids.includes(_id), fetchCredits: credential => fetch(credential), now: () => now })
   return { service, resolve, fetch, set: (value: AccountOverviewCapture | undefined) => { capture = value }, time: (value: number) => { now = value }, rotate: () => { current = false } }
 }
 describe('saved account credit overview', () => {
+  it.each([{ code: 0, data: {} }, { code: 0, data: { Response: { Data: {} } } }, { code: 0, data: { Response: { Data: { Accounts: [{ CycleCapacitySize: 100, CycleCapacityRemain: 'private-invalid-quota' }] } } } }])('preserves cached balance through the real parser when HTTP-success billing is malformed: %j', async malformed => {
+    const f = fixture(); const client = new WorkBuddyUpstreamClient()
+    const response = vi.fn(async () => Response.json({ code: 0, data: { Response: { Data: { Accounts: [{ CycleCapacitySize: 100, CycleCapacityRemain: 12 }] } } } }))
+    vi.stubGlobal('fetch', response)
+    f.fetch.mockImplementation(credential => client.fetchCredits(credential))
+    await f.service.refresh(owner, 'control-1', ids[0])
+    const previous = (await f.service.read())[ids[0]!]!
+    expect(previous.credits?.total).toBe(12)
+    f.time(200); response.mockImplementation(async () => Response.json(malformed))
+    await f.service.refresh(owner, 'control-1', ids[0])
+    expect((await f.service.read())[ids[0]!]).toEqual({ ...previous, error: 'credits-unavailable' })
+    expect(JSON.stringify(await f.service.read())).not.toContain('private-invalid-quota')
+  })
   it('reads only cached state and refreshes independent credentials with globally at most two requests', async () => {
     const f = fixture()
     expect(await f.service.read()).toEqual({})

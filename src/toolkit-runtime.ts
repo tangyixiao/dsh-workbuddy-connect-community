@@ -116,11 +116,13 @@ export class WorkBuddyToolkitRuntime {
         const credential = await base.resolveSavedAccount(scope.account, p.snapshot)
         return { credential }
       },
-      observeResult: async (result, scope) => {
+      observeResult: async (result, scope, credential) => {
         const p = await this.primary()
-        if (this.stopped || p === undefined || p.revision !== scope.revision || scope.region !== variant.region) return
+        if (this.stopped || credential === undefined || p === undefined || p.revision !== scope.revision || scope.region !== variant.region) return
         const accounts = await base.listAccounts()
         if (p.snapshot.controlRevision !== accounts.revision || !accounts.accounts.some(account => account.id === result.account)) return
+        const current = await base.currentSavedAccount(result.account, p.snapshot)
+        if (JSON.stringify(current) !== JSON.stringify(credential)) return
         const latest = await this.primary()
         if (latest?.revision !== p.revision) return
         this.checkinResults.delete(result.account)
