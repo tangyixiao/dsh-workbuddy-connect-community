@@ -9,7 +9,7 @@ import { WorkBuddyAccountPolicy } from './account-policy.ts'
 import { ToolkitSettingsStore, type ToolkitSettings } from './toolkit-settings.ts'
 import { CheckinAdmissionStore } from './checkin-admission.ts'
 import { WorkBuddyCheckinClient } from './checkin-client.ts'
-import { WorkBuddyCheckinService } from './checkin-service.ts'
+import { WorkBuddyCheckinService, type CheckinObservation } from './checkin-service.ts'
 import { WorkBuddyMediaClient, type MediaAccess, type MediaModel, type MediaRequest, type MediaScope } from './media-client.ts'
 import { MediaTaskStore } from './media-task-store.ts'
 import { WorkBuddyMediaService, createMediaTools, type MediaToolOptions } from './media-tools.ts'
@@ -17,8 +17,11 @@ import { createCodeBuddyTools } from './codebuddy-tools.ts'
 import { ToolkitToolError, type ToolkitApproval, type ToolkitToolDefinition } from './host-tools.ts'
 import type { ToolkitAction, ToolkitWebState } from './toolkit-types.ts'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
+import { WorkBuddyUsageStore } from './usage-store.ts'
+import { WorkBuddyAccountOverview } from './account-overview.ts'
 
 export interface ToolkitCapabilities { tools: boolean; approval: boolean; context: boolean }
+export interface WorkBuddyToolkitRuntimeOptions { usage?: WorkBuddyUsageStore }
 function sameScope(a: MediaScope | undefined, b: MediaScope): boolean { return a?.account === b.account && a.region === b.region && a.revision === b.revision }
 function executable(name: string): string | undefined {
   for (const dir of (process.env['PATH'] ?? '').split(delimiter)) {
@@ -44,6 +47,8 @@ export class WorkBuddyToolkitRuntime {
   readonly view: WorkBuddyCredentialStore
   readonly media: WorkBuddyMediaService
   readonly checkin: WorkBuddyCheckinService
+  readonly usage: WorkBuddyUsageStore
+  readonly accountOverview: WorkBuddyAccountOverview
   cached: ToolkitSettings | undefined
   owner: string | undefined
   onChange: () => void = () => {}
@@ -55,13 +60,34 @@ export class WorkBuddyToolkitRuntime {
   private readonly lifetime = new AbortController()
   private cliLifetime = new AbortController()
   private readonly mediaOptions: MediaToolOptions
-  private lastCheckin: { owner: string; value: NonNullable<ToolkitWebState['checkin']> } | undefined
+  private lastCheckin: { owner: string; account: string; value: NonNullable<ToolkitWebState['checkin']> } | undefined
+  private readonly checkinResults = new Map<string, { owner: string; value: CheckinObservation }>()
   private models: { account: string; at: number; rows: MediaModel[] } | undefined
-  constructor(readonly base: WorkBuddyCredentialStore, readonly variant: WorkBuddyVariant, private readonly client: WorkBuddyUpstreamClient) {
+  constructor(readonly base: WorkBuddyCredentialStore, readonly variant: WorkBuddyVariant, private readonly client: WorkBuddyUpstreamClient, options: WorkBuddyToolkitRuntimeOptions = {}) {
     const statePath = workbuddyVisibilityPath(`${variant.visibilityFilename}.toolkit`)
+    this.usage = options.usage ?? new WorkBuddyUsageStore(`${statePath}.usage`, variant.region)
     this.settings = new ToolkitSettingsStore(statePath, variant.region)
     this.policy = new WorkBuddyAccountPolicy({ base, region: variant.region, settings: primary => this.settings.get(base.accountId(primary)) })
     this.view = this.policy.credentialView()
+    this.accountOverview = new WorkBuddyAccountOverview({
+      capture: async () => {
+        const p = await this.primary(); const accounts = await base.listAccounts()
+        if (p === undefined || p.snapshot.controlRevision !== accounts.revision) return undefined
+        return { owner: p.account, revision: p.revision, controlRevision: accounts.revision, ids: accounts.accounts.map(account => account.id) }
+      },
+      resolve: async (id, capture) => {
+        const p = await this.primary()
+        if (p === undefined || p.account !== capture.owner || p.revision !== capture.revision) throw new ToolkitToolError('account-selection-changed')
+        return base.resolveSavedAccount(id, p.snapshot)
+      },
+      current: async (id, credential, capture) => {
+        const p = await this.primary()
+        if (p === undefined || p.account !== capture.owner || p.revision !== capture.revision) return false
+        const current = await base.currentSavedAccount(id, p.snapshot)
+        return JSON.stringify(current) === JSON.stringify(credential)
+      },
+      fetchCredits: credential => client.fetchCredits(credential),
+    })
     const approval: ToolkitApproval = { request: request => this.approval?.request(request) ?? Promise.resolve('unavailable') }
     this.mediaOptions = {
       tasks: new MediaTaskStore(`${statePath}.media`), client: new WorkBuddyMediaClient(),
@@ -90,6 +116,27 @@ export class WorkBuddyToolkitRuntime {
         const credential = await base.resolveSavedAccount(scope.account, p.snapshot)
         return { credential }
       },
+      captureObservationCredential: async scope => {
+        const p = await this.primary()
+        if (p === undefined || p.revision !== scope.revision || scope.region !== variant.region) return undefined
+        // Local saved credential only: a failed refresh can still be reported for this unchanged target.
+        return base.currentSavedAccount(scope.account, p.snapshot)
+      },
+      observeResult: async (result, scope, credential) => {
+        const p = await this.primary()
+        if (this.stopped || credential === undefined || p === undefined || p.revision !== scope.revision || scope.region !== variant.region) return
+        const accounts = await base.listAccounts()
+        if (p.snapshot.controlRevision !== accounts.revision || !accounts.accounts.some(account => account.id === result.account)) return
+        const latest = await this.primary()
+        if (latest?.revision !== p.revision) return
+        // The target lookup is the final async guard; publish synchronously after comparison.
+        const current = await base.currentSavedAccount(result.account, latest.snapshot)
+        if (JSON.stringify(current) !== JSON.stringify(credential)) return
+        this.checkinResults.delete(result.account)
+        this.checkinResults.set(result.account, { owner: p.account, value: { ...result } })
+        while (this.checkinResults.size > 100) this.checkinResults.delete(this.checkinResults.keys().next().value!)
+        if (result.source === 'manual') this.lastCheckin = { owner: p.account, account: result.account, value: { state: result.outcome, ...(result.credit === undefined ? {} : { credits: result.credit }) } }
+      },
     })
   }
   async primary() {
@@ -111,6 +158,10 @@ export class WorkBuddyToolkitRuntime {
       const p = await this.primary()
       const key = p?.revision ?? ''
       if (key === this.key) return
+      if (this.owner !== p?.account) {
+        for (const [id, row] of this.checkinResults) if (row.owner !== p?.account) this.checkinResults.delete(id)
+        if (this.lastCheckin?.owner !== p?.account) this.lastCheckin = undefined
+      }
       this.cached = p?.config; this.owner = p?.account
       this.cliLifetime.abort()
       this.cliLifetime = new AbortController()
@@ -156,14 +207,33 @@ export class WorkBuddyToolkitRuntime {
     await this.refresh()
     const decision = await this.policy.current().then(() => this.policy.decision(), () => undefined)
     const accounts = await this.base.listAccounts()
+    const primary = await this.primary()
+    let usage: ToolkitWebState['usage']
+    let accountCredits: ToolkitWebState['accountCredits']
+    if (primary !== undefined && primary.account === this.owner && primary.snapshot.controlRevision === accounts.revision) {
+      const candidate = await this.usage.read([primary.account, ...accounts.accounts.map(account => account.id)])
+      const credits = await this.accountOverview.read()
+      // Account removal/switches can happen during an asynchronous local read.
+      const latest = await this.primary()
+      if (latest?.revision === primary.revision) { usage = candidate; accountCredits = credits }
+    }
+    const finalPrimary = await this.primary()
+    if (finalPrimary?.revision !== primary?.revision || finalPrimary?.account !== this.owner || (finalPrimary !== undefined && finalPrimary.snapshot.controlRevision !== accounts.revision)) throw new ToolkitToolError('account-selection-changed')
+    for (const [id, row] of this.checkinResults) if (row.owner !== finalPrimary?.account || !accounts.accounts.some(account => account.id === id)) this.checkinResults.delete(id)
+    if (this.lastCheckin !== undefined && !accounts.accounts.some(account => account.id === this.lastCheckin!.account)) this.lastCheckin = undefined
+    const checkinResults = finalPrimary === undefined ? undefined : Object.fromEntries([...this.checkinResults].map(([id, row]) => [id, { ...row.value }]))
     return { provider: this.variant.id, key: controlKey, accounts, ...(this.owner === undefined ? {} : { account: this.owner }),
       ...(this.cached === undefined ? {} : { settings: structuredClone(this.cached) }), capabilities: { ...this.capabilities, cli: codeBuddyInstallation() !== undefined, media: true, checkin: true },
       ...decision === undefined ? {} : { decision }, ...(this.lastCheckin === undefined || this.lastCheckin.owner !== this.owner ? {} : { checkin: this.lastCheckin.value }),
+      ...(usage === undefined ? {} : { usage }),
+      ...(accountCredits === undefined ? {} : { accountCredits }),
+      ...(checkinResults === undefined ? {} : { checkinResults }),
     }
   }
   async action(action: ToolkitAction): Promise<{ state: string }> {
     if (this.stopped) throw new ToolkitToolError('disposed')
     switch (action.action) {
+      case 'refresh-account-credits': await this.accountOverview.refresh(action.account, action.revision, action.id); break
       case 'save-account': await this.base.saveCurrentAccount(action.revision); break
       case 'select-account': await this.base.selectAccount(action.id, action.revision); break
       case 'follow-desktop': await this.base.followDesktop(action.revision); break
@@ -188,13 +258,12 @@ export class WorkBuddyToolkitRuntime {
       case 'checkin': {
         const accounts = await this.base.listAccounts(); const p = await this.primary()
         if (accounts.revision !== action.revision || p === undefined || p.account !== action.account || p.snapshot.controlRevision !== action.revision || !accounts.accounts.some(account => account.id === action.id)) throw Object.assign(new Error('stale-state'), { code: 'account-selection-changed' })
-        const result = await this.checkin.claim({ region: this.variant.region, account: action.id, revision: p.revision }, { automatic: false, nonce: randomUUID() }, this.lifetime.signal)
-        this.lastCheckin = { owner: p.account, value: { state: result.outcome, ...('credit' in result && result.credit !== undefined ? { credits: result.credit } : {}) } }
+        await this.checkin.claim({ region: this.variant.region, account: action.id, revision: p.revision }, { automatic: false, nonce: randomUUID() }, this.lifetime.signal)
         break
       }
     }
     await this.refresh()
     return { state: 'updated' }
   }
-  dispose(): void { this.stopped = true; this.lifetime.abort(); this.cliLifetime.abort(); this.media.dispose(); this.checkin.dispose() }
+  dispose(): void { this.stopped = true; this.lifetime.abort(); this.cliLifetime.abort(); this.media.dispose(); this.checkin.dispose(); this.checkinResults.clear(); this.lastCheckin = undefined; this.accountOverview.dispose(); void this.usage.flush() }
 }

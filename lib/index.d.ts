@@ -1441,6 +1441,72 @@ export declare class WorkBuddyProbeStore {
    */
   private persist;
 }
+/** Only opaque saved-account identities and passive response metadata. */
+interface UsageRecord {
+  account: string;
+  model: string;
+  responseId: string;
+  completedAt: number;
+  credit?: number;
+}
+interface UsageTotals {
+  requests: number;
+  knownCreditRequests: number;
+  unknownCreditRequests: number;
+  observedCredits: number;
+}
+type UsageWindows = Record<'1' | '7' | '30', UsageTotals>;
+interface UsageSummary {
+  status: 'available' | 'history-invalid' | 'storage-unavailable';
+  persistence: 'persisted' | 'pending' | 'unavailable';
+  coverage: {
+    retentionDays: 31;
+    maxRecords: number;
+    maxBytes: number;
+    from: number | null;
+    to: number;
+    truncated: boolean;
+  };
+  windows: UsageWindows;
+  byAccount: Array<{
+    account: string;
+    windows: UsageWindows;
+  }>;
+  byModel: Array<{
+    model: string;
+    windows: UsageWindows;
+  }>;
+  recent: UsageRecord[];
+}
+interface WorkBuddyUsageStoreOptions {
+  now?: () => number;
+  maxRecords?: number;
+  maxBytes?: number;
+}
+/** Cross-process read/merge/write under the host lock; inference never awaits disk. */
+export declare class WorkBuddyUsageStore {
+  private readonly path;
+  private readonly region;
+  private readonly now;
+  private readonly maxRecords;
+  private readonly maxBytes;
+  private readonly pending;
+  private run;
+  private failure;
+  private dropped;
+  constructor(path: string, region: WorkBuddyRegion, options?: WorkBuddyUsageStoreOptions);
+  private empty;
+  private load;
+  /** Idle histories must age out on disk too; never write a lock-free snapshot. */
+  private loadRetained;
+  private bounded;
+  /** Queued records and the retry backlog are bounded; errors remain visible in read(). */
+  record(value: UsageRecord): Promise<void>;
+  /** Explicitly retries pending writes; never overwrites a corrupt document. */
+  flush(): Promise<void>;
+  /** Local-only retained projection. Callers supply owner-authorized account IDs. */
+  read(accounts: readonly string[]): Promise<UsageSummary>;
+}
 /** Minimal logger surface the plugin context already provides. */
 interface ShimLogger {
   warn(...args: unknown[]): void;
@@ -1483,6 +1549,8 @@ interface WorkBuddyShimOptions {
   /** Captures request account scope and an epoch shared with host reconciliation. */
   onCreditScoped?: (responseId: string, credit: number, account: string, epoch: number) => void;
   creditEpoch?: () => number;
+  /** Durable passive observation keeps the frozen original account across switches. */
+  onUsage?: (record: UsageRecord) => void | Promise<void>;
 }
 /**
  * Start the loopback endpoint. Requests carry any bearer; the loopback bind
@@ -1889,4 +1957,4 @@ export declare function visibilityAccountOf(credential: Pick<WorkBuddyCredential
  * working without re-registering the provider.
  */
 export declare function apply(ctx: Context, config: Config): void;
-export type { AppVersionInfo, ChatIdentity, ProbeAttempt, ProbeOutcome, ProbeSender, ResolveChatIdentityOptions, UpstreamErrorKind, WorkBuddyAdapter, WorkBuddyAppVersionSource, WorkBuddyAuthStatus, WorkBuddyCatalogFetch, WorkBuddyChatResult, WorkBuddyCredential, WorkBuddyCredits, WorkBuddyEffort, WorkBuddyHostHeartbeat, WorkBuddyModelBilling, WorkBuddyModelInfo, WorkBuddyModelReasoning, WorkBuddyProbeRecord, WorkBuddyProbeStatus, WorkBuddyProbeValidation, WorkBuddyPromotion, WorkBuddyRefreshOutcome, WorkBuddyShim, WorkBuddyUpstreamModel, WorkBuddyVariant };
+export type { AppVersionInfo, ChatIdentity, ProbeAttempt, ProbeOutcome, ProbeSender, ResolveChatIdentityOptions, UpstreamErrorKind, UsageRecord, UsageSummary, UsageTotals, UsageWindows, WorkBuddyAdapter, WorkBuddyAppVersionSource, WorkBuddyAuthStatus, WorkBuddyCatalogFetch, WorkBuddyChatResult, WorkBuddyCredential, WorkBuddyCredits, WorkBuddyEffort, WorkBuddyHostHeartbeat, WorkBuddyModelBilling, WorkBuddyModelInfo, WorkBuddyModelReasoning, WorkBuddyProbeRecord, WorkBuddyProbeStatus, WorkBuddyProbeValidation, WorkBuddyPromotion, WorkBuddyRefreshOutcome, WorkBuddyShim, WorkBuddyUpstreamModel, WorkBuddyUsageStoreOptions, WorkBuddyVariant };

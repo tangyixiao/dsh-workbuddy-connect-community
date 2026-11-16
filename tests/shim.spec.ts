@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,6 +8,8 @@ import { WorkBuddyCatalog } from '../src/catalog.ts'
 import { isFetchBlockedPort } from '../src/loopback.ts'
 import { createWorkBuddyShim, type ShimLogger, type WorkBuddyShim } from '../src/shim.ts'
 import type { WorkBuddyChatResult } from '../src/upstream.ts'
+import { workbuddySavedAccountId } from '../src/account-store.ts'
+import { WorkBuddyUsageStore, type UsageRecord } from '../src/usage-store.ts'
 
 const CLEANUP: (() => Promise<void>)[] = []
 
@@ -114,7 +116,7 @@ function rawRequest(options: {
 async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: ShimLogger, onCredit?: (responseId: string, credit: number) => void, creditScope?: {
   epoch: () => number
   observe: (responseId: string, credit: number, account: string, epoch: number) => void
-}): Promise<Harness> {
+}, onUsage?: (record: UsageRecord) => void | Promise<void>): Promise<Harness> {
   const dir = await mkdtemp(join(tmpdir(), 'wb-shim-'))
   CLEANUP.push(() => rm(dir, { recursive: true, force: true }))
   const desktop = join(dir, 'workbuddy-desktop.info')
@@ -141,6 +143,7 @@ async function startShim(upstreamResponse: () => WorkBuddyChatResult, logger?: S
     catalog: new WorkBuddyCatalog(),
     ...(logger === undefined ? {} : { logger }),
     ...(onCredit === undefined ? {} : { onCredit }),
+    ...(onUsage === undefined ? {} : { onUsage }),
     ...(creditScope === undefined ? {} : {
       creditEpoch: creditScope.epoch,
       onCreditScoped: creditScope.observe,
@@ -235,6 +238,96 @@ describe('WorkBuddy shim', () => {
     expect(await response.text()).toBe(raw)
     await waitFor(() => observed.length > 0)
     expect(observed).toEqual([['resp-1', 0]])
+  })
+
+  it.each([undefined, 0, 2.5])('observes completed request metadata with credit %s and byte-identical output', async credit => {
+    const raw = `data: ${JSON.stringify({ id: 'passive-id', choices: [{ delta: { content: '私密回复' } }], ...(credit === undefined ? {} : { usage: { credit } }) })}\n\ndata: [DONE]\n\n`
+    const observed: UsageRecord[] = []
+    const harness = await startShim(() => ({ ok: true, response: new Response(raw) }), undefined, undefined, undefined, row => { observed.push(row) })
+    const expectedAccount = workbuddySavedAccountId('cn', await harness.store.resolve())
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { authorization: `Bearer ${harness.shim.token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ model: 'hy3', messages: [{ role: 'user', content: '私密提示' }] }),
+    })
+    expect(await response.text()).toBe(raw)
+    expect(observed).toEqual([{ account: expectedAccount, model: 'hy3', responseId: 'passive-id', completedAt: expect.any(Number), ...(credit === undefined ? {} : { credit }) }])
+    expect(JSON.stringify(observed)).not.toMatch(/uid-1|私密|accessToken|refreshToken|messages/u)
+    expect(harness.upstreamBodies).toHaveLength(1)
+  })
+
+  it('retains original opaque usage attribution across switches while the old credit join rejects the epoch', async () => {
+    let release!: () => void
+    const stream = new ReadableStream<Uint8Array>({ start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"id":"original-response","usage":{"credit":4}}\n\n'))
+      release = () => { controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n')); controller.close() }
+    } })
+    const log = new (await import('../src/credit-log.ts')).WorkBuddyCreditLog()
+    const scoped = vi.fn()
+    const observed: UsageRecord[] = []
+    const harness = await startShim(() => ({ ok: true, response: new Response(stream) }), undefined, undefined, { epoch: () => log.epoch, observe: scoped }, row => { observed.push(row) })
+    const credential = await harness.store.resolve()
+    const originalAccount = workbuddySavedAccountId('cn', credential)
+    vi.spyOn(harness.store, 'resolve').mockResolvedValue(credential)
+    const pending = fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { authorization: `Bearer ${harness.shim.token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ model: 'hy3', messages: [] }),
+    })
+    await waitFor(() => harness.upstreamSignals.length > 0)
+    credential.uid = 'new-account'; credential.enterpriseId = 'new-enterprise'
+    log.clear(); release()
+    await (await pending).text()
+    expect(observed).toEqual([{ account: originalAccount, model: 'hy3', responseId: 'original-response', completedAt: expect.any(Number), credit: 4 }])
+    expect(scoped).not.toHaveBeenCalled()
+  })
+
+  it.each(['throw', 'reject'])('keeps inference successful when the passive observer fails via %s', async mode => {
+    const raw = 'data: {"id":"completed","choices":[{"finish_reason":"stop"}]}\n\n'
+    const warnings: unknown[][] = []
+    const logger: ShimLogger = { warn: (...args) => { warnings.push(args) }, error: () => {} }
+    const harness = await startShim(() => ({ ok: true, response: new Response(raw) }), logger, undefined, undefined, () => {
+      if (mode === 'throw') throw new Error('private-token private-body')
+      return Promise.reject(new Error('private-token private-body'))
+    })
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { authorization: `Bearer ${harness.shim.token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ model: 'hy3', messages: [] }),
+    })
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe(raw)
+    await waitFor(() => warnings.length > 0)
+    expect(warnings).toEqual([['dsh-workbuddy-connect: usage observation unavailable']])
+    expect(harness.upstreamBodies).toHaveLength(1)
+  })
+
+  it('writes only completed safe request metadata through the durable observer', async () => {
+    const parent = join(process.cwd(), 'work/account-usage-20261116/shim-tests')
+    await mkdir(parent, { recursive: true })
+    const dir = await mkdtemp(join(parent, 'fixture-'))
+    CLEANUP.push(() => rm(dir, { recursive: true, force: true }))
+    const path = join(dir, 'usage.json')
+    const usage = new WorkBuddyUsageStore(path, 'cn')
+    const raw = 'data: {"id":"stored-response","choices":[{"delta":{"content":"private-answer"}}]}\n\ndata: {"usage":{"credit":0.75}}\n\ndata: [DONE]\n\n'
+    const harness = await startShim(() => ({ ok: true, response: new Response(raw) }), undefined, undefined, undefined, row => usage.record(row))
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { authorization: `Bearer ${harness.shim.token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ model: 'hy3', messages: [{ role: 'user', content: 'private-prompt' }] }),
+    })
+    expect(await response.text()).toBe(raw)
+    await usage.flush()
+    const text = await readFile(path, 'utf8')
+    expect(text).not.toMatch(/private-|uid-1|accessToken|refreshToken|messages|content/u)
+    expect(JSON.parse(text).records).toEqual([{ account: workbuddySavedAccountId('cn', await harness.store.resolve()), model: 'hy3', completedAt: expect.any(Number), responseId: 'stored-response', credit: 0.75 }])
+    expect(harness.upstreamBodies).toHaveLength(1)
+  })
+
+  it.each([
+    'data: {"id":"partial","usage":{"credit":2}}\n\n',
+    'data: {"choices":[{"finish_reason":"stop"}]}\n\n',
+    'data: {"id":"overflow","content":"' + 'x'.repeat(1_048_576) + '"}\n\ndata: [DONE]\n\n',
+  ])('ignores incomplete, unidentified or oversized streams', async raw => {
+    const observe = vi.fn()
+    const harness = await startShim(() => ({ ok: true, response: new Response(raw) }), undefined, undefined, undefined, observe)
+    const response = await fetch(`${harness.shim.baseUrl()}/v1/chat/completions`, {
+      method: 'POST', headers: { authorization: `Bearer ${harness.shim.token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ model: 'hy3', messages: [] }),
+    })
+    expect(await response.text()).toBe(raw)
+    expect(observe).not.toHaveBeenCalled()
   })
 
   it('discards a completed old-account response after the account changes', async () => {

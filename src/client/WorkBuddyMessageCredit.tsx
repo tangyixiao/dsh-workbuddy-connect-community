@@ -6,7 +6,7 @@ interface Injected { sessionId: string; provider: string }
 
 type Props = PropsRuntime<'conversation.chat.assistant-actions'> & PropsLocale<'settings.workbuddy'> & Injected
 
-interface SessionFeed { listeners: Set<() => void>; snapshot: WorkBuddySessionCredits | undefined; timer: number; inflight: boolean; controller?: AbortController }
+interface SessionFeed { listeners: Set<() => void>; snapshot: WorkBuddySessionCredits | undefined; timer: number; inflight: boolean; controller?: AbortController; cleanup: () => void }
 const feeds = new Map<string, SessionFeed>()
 
 function subscribe(provider: string, sessionId: string, listener: () => void): () => void {
@@ -16,7 +16,7 @@ function subscribe(provider: string, sessionId: string, listener: () => void): (
     const listeners = new Set<() => void>()
     const refresh = async () => {
       const current = feeds.get(key)
-      if (current === undefined || current.inflight) return
+      if (current === undefined || current.inflight || (typeof document !== 'undefined' && document.hidden)) return
       current.inflight = true
       const controller = new AbortController()
       current.controller = controller
@@ -30,7 +30,7 @@ function subscribe(provider: string, sessionId: string, listener: () => void): (
           if (Number.isFinite(credit) && credit >= 0) credits[messageId] = credit
         }
         const active = feeds.get(key)
-        if (active === current) active.snapshot = { sessionId, credits }
+        if (active === current && !controller.signal.aborted) active.snapshot = { sessionId, credits }
       } catch {
         if (!controller.signal.aborted) {
           const active = feeds.get(key)
@@ -45,10 +45,16 @@ function subscribe(provider: string, sessionId: string, listener: () => void): (
         }
       }
     }
-    feed = { listeners, snapshot: undefined, timer: 0, inflight: false }
+    const visibilityChanged = () => {
+      const current = feeds.get(key)
+      if (current === undefined) return
+      if (document.hidden) { window.clearInterval(current.timer); current.timer = 0; current.controller?.abort() }
+      else if (current.timer === 0) { void refresh(); current.timer = window.setInterval(() => { void refresh() }, 2000) }
+    }
+    feed = { listeners, snapshot: undefined, timer: 0, inflight: false, cleanup: () => { if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', visibilityChanged) } }
     feeds.set(key, feed)
-    void refresh()
-    feed.timer = window.setInterval(() => { void refresh() }, 2000)
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', visibilityChanged)
+    if (typeof document === 'undefined' || !document.hidden) { void refresh(); feed.timer = window.setInterval(() => { void refresh() }, 2000) }
   }
   feed.listeners.add(listener)
   return () => {
@@ -58,6 +64,7 @@ function subscribe(provider: string, sessionId: string, listener: () => void): (
     if (current.listeners.size === 0) {
       window.clearInterval(current.timer)
       current.controller?.abort()
+      current.cleanup()
       feeds.delete(key)
     }
   }

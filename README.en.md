@@ -25,7 +25,7 @@ Historical upstream screenshot of the model menu; current models, prices and pla
 Desktop: install the release `.tgz` through Extensions → Plugin Management → Add Plugin. For a Web profile you explicitly control:
 
 ```sh
-dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.20
+dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.21
 ```
 
 Sign in to the matching desktop product. Disable the original `dsh-workbuddy-connect` before enabling this community package; they share provider IDs. Use `dsh-workbuddy-connect-community doctor --share` for a redacted diagnostic.
@@ -34,15 +34,15 @@ Sign in to the matching desktop product. Disable the original `dsh-workbuddy-con
 
 | Item | Current source of truth |
 | --- | --- |
-| Source version | `0.1.20` · see [package.json](package.json) |
+| Source version | `0.1.21` · see [package.json](package.json) |
 | Distribution | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
 | DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1 \|\| 0.2.2-rc.3` |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |
 | Development | [Open issues](https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues?q=is%3Aissue+is%3Aopen) · [CI](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions) |
 
-The `usage.credit` beside a message is an observed value for one upstream response linked to that message. Records live in bounded memory and may disappear; they are not a durable billing ledger or a session total. Validate catalogs, local sign-in and live upstream requests separately.
+The `usage.credit` beside a message is an observed value for one upstream response linked to that message. Records live in bounded memory and may disappear; they are not a durable billing ledger or a session total. A separate bounded history retains this plugin’s observed usage, excluding other clients and official account-wide totals. Validate catalogs, local sign-in and live upstream requests separately.
 
-[Detailed usage, configuration and troubleshooting](docs/guide.en.md) · [Acceptance steps](docs/acceptance.md) · [Feature roadmap and prerequisites](docs/roadmap.md)
+[Account credits, retained usage and check-in outcomes](docs/accounts-and-usage.md) · [Detailed usage, configuration and troubleshooting](docs/guide.en.md) · [Acceptance steps](docs/acceptance.md) · [Feature roadmap and prerequisites](docs/roadmap.md)
 
 ## Development and participation
 

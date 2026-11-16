@@ -17,6 +17,49 @@ function props(sessionId: string, messageId: string): React.ComponentProps<typeo
 }
 
 describe('WorkBuddyMessageCredit', () => {
+  it('does no periodic work while hidden and resumes when visible', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', { setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval })
+    const visibility = new EventTarget()
+    let hidden = true
+    vi.stubGlobal('document', { get hidden() { return hidden }, addEventListener: visibility.addEventListener.bind(visibility), removeEventListener: visibility.removeEventListener.bind(visibility) })
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ sessionId: 'visible-session', credits: { m1: 0 } }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchSpy)
+    await act(async () => { renderer = create(React.createElement(WorkBuddyMessageCredit, props('visible-session', 'm1'))) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000) })
+    expect(fetchSpy).not.toHaveBeenCalled()
+    hidden = false
+    await act(async () => { visibility.dispatchEvent(new Event('visibilitychange')) })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(renderer!.toJSON())).toContain('0 credits')
+    hidden = true
+    act(() => { visibility.dispatchEvent(new Event('visibilitychange')) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000) })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts in-flight polling when hidden and removes its visibility listener on teardown', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', { setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval })
+    const visibility = new EventTarget()
+    let hidden = false
+    const remove = vi.fn(visibility.removeEventListener.bind(visibility))
+    vi.stubGlobal('document', { get hidden() { return hidden }, addEventListener: visibility.addEventListener.bind(visibility), removeEventListener: remove })
+    let signal: AbortSignal | undefined
+    let finish!: (response: Response) => void
+    const fetchSpy = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => { signal = init?.signal ?? undefined; return new Promise<Response>(resolve => { finish = resolve }) })
+    vi.stubGlobal('fetch', fetchSpy)
+    await act(async () => { renderer = create(React.createElement(WorkBuddyMessageCredit, props('abort-hidden', 'm1'))) })
+    hidden = true
+    act(() => { visibility.dispatchEvent(new Event('visibilitychange')) })
+    expect(signal?.aborted).toBe(true)
+    await act(async () => { finish(new Response(JSON.stringify({ sessionId: 'abort-hidden', credits: { m1: 7 } }))) })
+    expect(renderer!.toJSON()).toBeNull()
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000) })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    act(() => { renderer!.unmount() }); renderer = undefined
+    expect(remove).toHaveBeenCalledTimes(1)
+  })
   it('keeps unknown absent and renders an observed zero', async () => {
     vi.stubGlobal('window', { setInterval: () => 1, clearInterval: vi.fn() })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ sessionId: 's1', credits: { m1: 0 } }), { status: 200 })))
