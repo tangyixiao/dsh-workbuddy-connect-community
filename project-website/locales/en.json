@@ -1,0 +1,136 @@
+{
+  "meta": {
+    "description": "Use your signed-in WorkBuddy or WorkBuddy AI desktop client to select the models and context options available to that account in DSH."
+  },
+  "pages": {
+    "home": {
+      "title": "Bring WorkBuddy models into DSH · {project}"
+    },
+    "features": {
+      "title": "Features · {project}",
+      "description": "Use your signed-in WorkBuddy or WorkBuddy AI desktop client to select the models and context options available to that account in DSH."
+    },
+    "download": {
+      "title": "Get started · {project}",
+      "description": "Open the WorkBuddy product you want to connect and sign in locally."
+    },
+    "community": {
+      "title": "Community · {project}",
+      "description": "Find usage guidance, follow discussions and review changes to this project."
+    }
+  },
+  "nav": {
+    "home": "Home",
+    "features": "Features",
+    "download": "Get started",
+    "community": "Community"
+  },
+  "ui": {
+    "skip_link": "Skip to main content",
+    "navigation": "Main navigation",
+    "open_navigation": "Open navigation",
+    "close_navigation": "Close navigation",
+    "language": "Choose language",
+    "theme": "Choose theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "platforms": "Supported platforms",
+    "github": "GitHub",
+    "view_image": "View full illustration",
+    "feature_more": "Explore features",
+    "download": "Open the install guide",
+    "release_notes": "Source repository",
+    "documentation": "Documentation",
+    "source": "Source repository",
+    "illustration": "First steps",
+    "license": "MIT"
+  },
+  "hero": {
+    "title": [
+      "Bring WorkBuddy models into DSH"
+    ],
+    "description": [
+      "Use your signed-in WorkBuddy or WorkBuddy AI desktop client to select the models and context options available to that account in DSH."
+    ],
+    "primary_action": "Open the install guide",
+    "secondary_action": "Explore features"
+  },
+  "preview": {
+    "caption": "First steps",
+    "tabs": [
+      {
+        "label": "Get started",
+        "icon": "book"
+      }
+    ],
+    "items": [
+      {
+        "title": "Sign in on desktop",
+        "description": "Open the WorkBuddy product you want to connect and sign in locally.",
+        "icon": "book"
+      },
+      {
+        "title": "Switch providers",
+        "description": "Install the community package in DSH, disable the original plugin that shares its provider ID, then enable the community package and refresh the catalog.",
+        "icon": "link"
+      }
+    ]
+  },
+  "features": {
+    "title": "Project features",
+    "groups": [
+      {
+        "title": "Two product connections",
+        "description": "The domestic and international products register separate providers. Select the one for the desktop app you use.",
+        "detail": "",
+        "icon": "layers"
+      },
+      {
+        "title": "Per-response usage",
+        "description": "A message can display credits observed for its associated upstream response. The plugin records usage for requests it actually sees.",
+        "detail": "",
+        "icon": "book"
+      }
+    ]
+  },
+  "getting_started": {
+    "title": "Get started · {project}",
+    "steps": [
+      {
+        "title": "Sign in on desktop",
+        "description": "Open the WorkBuddy product you want to connect and sign in locally.",
+        "icon": "book"
+      },
+      {
+        "title": "Switch providers",
+        "description": "Install the community package in DSH, disable the original plugin that shares its provider ID, then enable the community package and refresh the catalog.",
+        "icon": "link"
+      }
+    ]
+  },
+  "community": {
+    "title": "Community · {project}",
+    "description": "Find usage guidance, follow discussions and review changes to this project.",
+    "links": [
+      {
+        "label": "Help and feedback",
+        "description": "Browse existing reports or describe a reproducible problem.",
+        "icon": "book"
+      },
+      {
+        "label": "Join the discussion",
+        "description": "Read existing topics or share questions and ideas.",
+        "icon": "link"
+      },
+      {
+        "label": "Review changes",
+        "description": "Review open pull requests or prepare a contribution.",
+        "icon": "code"
+      }
+    ]
+  },
+  "footer": {
+    "copyright": "{copyright}"
+  }
+}
