@@ -18,6 +18,8 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.spec.ts'],
     environment: 'node',
+    // SDK imports and real loopback fixtures must not exhaust a desktop's memory.
+    maxWorkers: 2,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],

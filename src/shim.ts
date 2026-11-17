@@ -21,10 +21,12 @@ import { Readable } from 'node:stream'
 import type { WorkBuddyCredentialStore } from './auth.ts'
 import type { WorkBuddyCatalog } from './catalog.ts'
 import { bindToUsablePort, hostIsLoopback, originIsLoopback } from './loopback.ts'
-import { extractDisplayErrorMessage, prepareChatBody, upstreamBusinessCode, WorkBuddyUpstreamClient, type UpstreamErrorKind } from './upstream.ts'
+import { extractDisplayErrorMessage, prepareChatBody, regionOf, upstreamBusinessCode, WorkBuddyUpstreamClient, type UpstreamErrorKind } from './upstream.ts'
 import { WorkBuddyCreditSseObserver } from './credit-log.ts'
 import { WORKBUDDY_ACCOUNT_SCOPE_HEADER, workBuddyRequestScope } from './account-scope.ts'
 import type { WorkBuddyCredential } from './auth.ts'
+import { workbuddySavedAccountId } from './account-store.ts'
+import type { UsageRecord } from './usage-store.ts'
 
 /** Minimal logger surface the plugin context already provides. */
 export interface ShimLogger {
@@ -64,9 +66,52 @@ export interface WorkBuddyShimOptions {
   /** Captures request account scope and an epoch shared with host reconciliation. */
   onCreditScoped?: (responseId: string, credit: number, account: string, epoch: number) => void
   creditEpoch?: () => number
+  /** Durable passive observation keeps the frozen original account across switches. */
+  onUsage?: (record: UsageRecord) => void | Promise<void>
 }
 
 const REQUEST_BODY_LIMIT = 64 * 1024 * 1024
+
+/** Independent from the epoch-sensitive message-credit join; credit may be unknown. */
+class UsageSseObserver {
+  private readonly decoder = new TextDecoder()
+  private pending = ''
+  private overflowed = false
+  private complete = false
+  private responseId: string | undefined
+  private credit: number | undefined
+  push(bytes: Uint8Array): void {
+    if (this.overflowed) return
+    this.pending += this.decoder.decode(bytes, { stream: true })
+    if (this.pending.length > 1_048_576) { this.pending = ''; this.overflowed = true; return }
+    this.consume(false)
+  }
+  finish(): { responseId: string; credit?: number } | undefined {
+    if (this.overflowed) return undefined
+    this.pending += this.decoder.decode(); this.consume(true)
+    return !this.complete || this.responseId === undefined ? undefined : { responseId: this.responseId, ...(this.credit === undefined ? {} : { credit: this.credit }) }
+  }
+  private consume(final: boolean): void {
+    const lines = this.pending.split(/\r?\n/u)
+    this.pending = final ? '' : lines.pop() ?? ''
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue
+      const payload = line.slice(5).trimStart()
+      if (payload === '[DONE]') { this.complete = true; continue }
+      try {
+        const value = JSON.parse(payload) as { id?: unknown; usage?: { credit?: unknown }; choices?: Array<{ finish_reason?: unknown }> } | null
+        if (value === null || typeof value !== 'object') continue
+        if (typeof value.id === 'string' && value.id.length > 0 && value.id.length <= 512) {
+          if (value.id !== this.responseId) this.credit = undefined
+          this.responseId = value.id
+        }
+        const credit = value.usage?.credit
+        if (this.responseId !== undefined && typeof credit === 'number' && Number.isFinite(credit) && credit >= 0 && credit <= Number.MAX_SAFE_INTEGER) this.credit = credit
+        if (Array.isArray(value.choices) && value.choices.some(choice => typeof choice?.finish_reason === 'string' && choice.finish_reason.length > 0)) this.complete = true
+      } catch { /* non-JSON SSE events never enter durable observation */ }
+    }
+  }
+}
 
 /** Chat-completion POSTs must carry a JSON body type (simple-request CSRF drops here). */
 function isJsonContentType(req: IncomingMessage): boolean {
@@ -253,12 +298,13 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
     }
     let credential
     try {
-      credential = await store.resolve()
+      credential = { ...await store.resolve() }
     } catch {
       writeOpenAIError(res, 401, 'not_signed_in', 'WorkBuddy credentials are unavailable; sign in again')
       return
     }
     const requestAccount = `${credential.uid}:${credential.enterpriseId ?? ''}`
+    const usageAccount = options.onUsage === undefined || credential.uid.trim() === '' ? undefined : workbuddySavedAccountId(regionOf(credential.domain), credential)
     if (options.requireAccountScope && req.headers[WORKBUDDY_ACCOUNT_SCOPE_HEADER] !== workBuddyRequestScope(credential)) {
       res.setHeader('x-should-retry', 'false')
       writeOpenAIError(res, 400, 'account_changed', 'WorkBuddy account changed; refresh the model list and send again')
@@ -301,6 +347,7 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
 
     const raw = (await readBody(req)).toString('utf8')
     const prepared = prepareChatBody(raw)
+    const requestModel: unknown = (JSON.parse(prepared) as Record<string, unknown>)['model']
     const result = await client.chatStream(credential, prepared, controller.signal)
     if (options.onOutcome !== undefined) {
       try {
@@ -372,6 +419,17 @@ export function createWorkBuddyShim(options: WorkBuddyShimOptions): WorkBuddyShi
       'X-Accel-Buffering': 'no',
     })
     const body = Readable.fromWeb(result.response.body as Parameters<typeof Readable.fromWeb>[0])
+    if (options.onUsage !== undefined && usageAccount !== undefined && typeof requestModel === 'string' && requestModel.length > 0 && requestModel.length <= 512) {
+      const usageObserver = new UsageSseObserver()
+      body.on('data', (chunk: Buffer | Uint8Array) => usageObserver.push(chunk))
+      body.once('end', () => {
+        const observed = usageObserver.finish()
+        if (observed === undefined) return
+        const unavailable = (): void => { logger?.warn('dsh-workbuddy-connect: usage observation unavailable') }
+        try { void Promise.resolve(options.onUsage!({ account: usageAccount, model: requestModel, completedAt: Date.now(), ...observed })).catch(unavailable) }
+        catch { unavailable() }
+      })
+    }
     const creditObserver = options.onCredit === undefined && options.onCreditScoped === undefined
       ? undefined
       : new WorkBuddyCreditSseObserver()

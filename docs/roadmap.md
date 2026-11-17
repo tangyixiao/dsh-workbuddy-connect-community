@@ -1,8 +1,8 @@
 # Feature boundaries and roadmap / 功能边界与路线
 
-The published installation baseline is **0.1.17**; see its [release notes](release-notes-0.1.17.md). The preceding locally active **0.1.18** candidate and the upcoming **0.1.19 source candidate** are separate artifacts. This page describes source scope and remaining qualification, not a new release, a completion percentage or proof of live compatibility. Use the [complete toolkit operating guide](complete-toolkit.md) for steps, tool/command names and acceptance cases.
+Current source is **0.1.21**; the preceding published stable release is **0.1.20**. See [account and usage behavior](accounts-and-usage.md), [0.1.20 release notes](release-notes-0.1.20.md), and the exact Release/npm version for publication evidence. Source features, installation, host activation and live upstream acceptance are separate.
 
-公开安装基线仍是 **0.1.17**。此前本地已激活的 **0.1.18** 候选与目标为 **0.1.19** 的本轮源码分别记录；旧候选激活不证明新工具集已安装或发布。本页说明源码范围与待验收边界，不提供开发百分比。操作步骤、工具、命令和验收用例见完整工具集指南。
+当前源码为 **0.1.21**，此前已发布正式版为 **0.1.20**。账号、额度与用量留存见[操作说明](accounts-and-usage.md)；具体发布状态以对应 Release/npm 版本为准。源码功能、安装、宿主激活和真实服务验收分别记录。
 
 ## Published core / 已发布核心
 
@@ -18,16 +18,17 @@ The guides retain the narrower Windows catalog/menu and exact host-registration 
 
 已有 Windows 目录、菜单和特定宿主注册证据只证明对应范围；macOS/Linux 真实运行、模型生成、跨区服务需独立记录。
 
-## Candidate source capabilities / 候选源码能力
+## Source capabilities / 源码能力
 
-These additions require the exact reviewed candidate and compatible host services. A published 0.1.17 install or the older active 0.1.18 candidate does not establish their installation. Source tests and mocked wire/host/process cases do not establish actual upstream success.
+These optional capabilities are present in current source and require compatible host services. Media, CLI, rescue and automation remain off by default. Offline tests do not establish actual upstream success.
 
-以下能力需准确的本轮候选包及兼容宿主服务。稳定包或旧候选的安装证据不能外推本轮；源码、模拟协议、宿主和子进程测试不能填作真实服务成功。
+以下可选能力已在当前源码中，仍需兼容宿主服务；媒体、CLI、救援和自动化默认关闭。离线测试不能填作真实服务成功。
 
 | Capability / 能力 | Source contract / 源码合同 |
 | --- | --- |
 | Structured failures / 错误分类 | Separate busy, hard credit, policy, channel and queue outcomes; keep actual HTTP 401 as authentication. / 不因业务拒绝自动重试。 |
 | Foreign reasoning and defaults / 历史与推理默认值 | Strip foreign assistant thinking while preserving text/tool linkage; account/model-scoped validated defaults obey explicit request choices. / 不修改调用方对象，不补造推理等级。 |
+| Account credits and observed history / 账号额度与用量留存 | Explicit saved-account credit refresh without selection; bounded plugin-only history and per-account check-in outcomes. / 明确刷新账号额度，不切换账号；保留有上限的本插件观测记录与逐账号签到结果。详见 [guide](accounts-and-usage.md)。 |
 | Saved accounts / 保存账号 | UI save/use/follow/name/remove, opaque IDs and durable revision checks; region and refresh isolation; no desktop-auth rewrite. / 过期写入、选中账号移除、损坏状态均拒绝。 |
 | Passive availability / 被动可用性 | Account/model-scoped busy/queue observations, source/time/TTL and verified retry timing. Expired/absent is unknown; no proactive generation probe or invented queue position. / 无健康保证。 |
 | Promotion facts / 活动事实 | Source/freshness, valid fixed windows and verified daily timezone windows. Unknown schedules, base prices, eligibility and tiers stay unknown. / 不按徽标推算免费额度。 |

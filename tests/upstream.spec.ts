@@ -164,6 +164,18 @@ describe('WorkBuddyUpstreamClient.fetchModels', () => {
 })
 
 describe('WorkBuddyUpstreamClient.fetchCredits', () => {
+  it.each([
+    { code: 0, data: {} },
+    { code: 0, data: { Response: [] } },
+    { code: 0, data: { Response: { Data: null } } },
+    { code: 0, data: { Response: { Data: { Accounts: {} } } } },
+    { code: 0, data: { Response: { Data: { Accounts: [{ CycleCapacitySize: 100 }] } } } },
+    { code: 0, data: { Response: { Data: { Accounts: [{ CapacityRemain: 'invalid-number' }] } } } },
+    { code: 0, data: { Response: { Data: { Accounts: [{ PackageName: 'empty-quota' }] } } } },
+  ])('rejects malformed required personal quota without assuming zero: %j', async payload => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(payload)))
+    await expect(new WorkBuddyUpstreamClient().fetchCredits(CREDENTIAL)).rejects.toThrow('workbuddy personal billing response invalid')
+  })
   it('unwraps the nested envelope and aggregates total across accounts', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(billingEnvelope([
       { PackageName: 'pkg-a', CycleCapacitySize: 100, CycleCapacityRemain: 40 },
@@ -246,7 +258,7 @@ describe('WorkBuddyUpstreamClient.fetchCredits', () => {
     expect(credits.accounts).toEqual([])
   })
 
-  it('skips non-object account entries', async () => {
+  it('rejects non-object account entries instead of publishing an incomplete balance', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeResponse(billingEnvelope([
       null,
       'not-an-object',
@@ -254,9 +266,7 @@ describe('WorkBuddyUpstreamClient.fetchCredits', () => {
       { PackageName: 'valid', CycleCapacitySize: 10, CycleCapacityRemain: 7 },
     ]))))
 
-    const credits = await new WorkBuddyUpstreamClient().fetchCredits(CREDENTIAL)
-    expect(credits.accounts).toHaveLength(1)
-    expect(credits.accounts[0]!.packageName).toBe('valid')
+    await expect(new WorkBuddyUpstreamClient().fetchCredits(CREDENTIAL)).rejects.toThrow('workbuddy personal billing response invalid')
   })
 
   /**

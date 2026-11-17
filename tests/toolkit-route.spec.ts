@@ -113,6 +113,10 @@ describe('registered owner toolkit route', () => {
     expect(failed.body).toBe('{"error":"toolkit-state-unavailable"}')
   })
   it('rejects unknown nested settings and blank labels in the action parser', () => {
+    expect(parseToolkitAction({ action: 'refresh-account-credits', revision: 'revision', account: id })).toEqual({ action: 'refresh-account-credits', revision: 'revision', account: id })
+    expect(parseToolkitAction({ action: 'refresh-account-credits', revision: 'revision', account: id, id })).toMatchObject({ id })
+    expect(parseToolkitAction({ action: 'refresh-account-credits', revision: 'revision', id })).toBeUndefined()
+    expect(parseToolkitAction({ action: 'refresh-account-credits', revision: 'revision', account: id, id: 'private' })).toBeUndefined()
     expect(parseToolkitAction({ action: 'update-settings', revision: 'initial', account: id, patch: { features: { surprisePaidFeature: true } } })).toBeUndefined()
     expect(parseToolkitAction({ action: 'update-settings', revision: 'initial', account: id, patch: { secret: 'private-input' } })).toBeUndefined()
     expect(parseToolkitAction({ action: 'rename-account', revision: 'revision', id, label: '   ' })).toBeUndefined()

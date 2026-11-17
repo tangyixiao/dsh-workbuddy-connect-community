@@ -1229,32 +1229,38 @@ export class WorkBuddyUpstreamClient {
     })
     const envelope = await readEnvelope(response)
     if (!response.ok || envelope.code !== 0) throw envelopeError(response.status, envelope)
-    const responseWrapper = typeof envelope.data === 'object' && envelope.data !== null
-      ? envelope.data as Record<string, unknown>
-      : {}
-    const data = typeof responseWrapper['Response'] === 'object' && responseWrapper['Response'] !== null
-      ? responseWrapper['Response'] as Record<string, unknown>
-      : {}
-    const inner = typeof data['Data'] === 'object' && data['Data'] !== null
-      ? data['Data'] as Record<string, unknown>
-      : {}
-    const rawAccounts = Array.isArray(inner['Accounts']) ? inner['Accounts'] : []
+    const invalid = (): never => { throw new Error('workbuddy personal billing response invalid') }
+    const record = (value: unknown): Record<string, unknown> => {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) return invalid()
+      return value as Record<string, unknown>
+    }
+    const inner = record(record(record(envelope.data)['Response'])['Data'])
+    const rawAccounts = inner['Accounts']
+    // Only an explicit Accounts: [] establishes a zero package balance.
+    if (!Array.isArray(rawAccounts)) return invalid()
     const accounts: WorkBuddyCreditAccount[] = []
     let total = 0
     for (const raw of rawAccounts) {
-      if (typeof raw !== 'object' || raw === null) continue
-      const account = raw as Record<string, unknown>
-      const numberField = (key: string): number => (typeof account[key] === 'number' ? account[key] as number : 0)
+      const account = record(raw)
+      const numberField = (key: string, required = false): number => {
+        const value = account[key]
+        if (value === undefined && !required) return 0
+        if (typeof value !== 'number' || !Number.isFinite(value)) return invalid()
+        return value
+      }
       const size = numberField('CycleCapacitySize')
       const cycleRemain = numberField('CycleCapacityRemain')
       const cycleUsed = numberField('CycleCapacityUsed')
       const capacityRemain = numberField('CapacityRemain')
       let remain: number
-      if (size > 0) remain = cycleRemain
-      else if (cycleRemain > 0 || cycleUsed > 0) remain = cycleRemain
-      else remain = capacityRemain
+      if (size > 0) remain = numberField('CycleCapacityRemain', true)
+      else if (cycleRemain > 0 || cycleUsed > 0) remain = numberField('CycleCapacityRemain', true)
+      else if (account['CapacityRemain'] !== undefined) remain = capacityRemain
+      else if (account['CycleCapacityRemain'] !== undefined) remain = cycleRemain
+      else return invalid()
       if (remain < 0) remain = 0
       total += remain
+      if (!Number.isFinite(total)) return invalid()
       const endTimeMs = parseCycleEndTime(account['CycleEndTime'])
       accounts.push({
         packageName: typeof account['PackageName'] === 'string' ? account['PackageName'] : '(unnamed)',

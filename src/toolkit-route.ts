@@ -16,6 +16,7 @@ const fields = {
   'select-account': ['action', 'revision', 'id'], 'remove-account': ['action', 'revision', 'id'],
   'rename-account': ['action', 'revision', 'id', 'label'],
   'update-settings': ['action', 'revision', 'account', 'patch'], 'checkin': ['action', 'revision', 'id', 'account'],
+  'refresh-account-credits': ['action', 'revision', 'account', 'id'],
 } as const
 function closedPatch(value: unknown): boolean {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
@@ -39,9 +40,9 @@ export function parseToolkitAction(value: unknown): ToolkitAction | undefined {
   const action = record['action']
   if (typeof action !== 'string' || !Object.hasOwn(fields, action)) return undefined
   const keys = fields[action as keyof typeof fields] as readonly string[]
-  if (Object.keys(record).some(key => !keys.includes(key)) || keys.some(key => !Object.hasOwn(record, key))) return undefined
+  if (Object.keys(record).some(key => !keys.includes(key)) || keys.some(key => !(action === 'refresh-account-credits' && key === 'id') && !Object.hasOwn(record, key))) return undefined
   if (typeof record['revision'] !== 'string' || record['revision'].length > 80 || !record['revision']) return undefined
-  for (const key of ['id', 'account']) if (keys.includes(key) && (typeof record[key] !== 'string' || !/^(cn|global)-[a-f0-9]{32}$/u.test(record[key]))) return undefined
+  for (const key of ['id', 'account']) if (keys.includes(key) && !(action === 'refresh-account-credits' && key === 'id' && !Object.hasOwn(record, key)) && (typeof record[key] !== 'string' || !/^(cn|global)-[a-f0-9]{32}$/u.test(record[key]))) return undefined
   if (keys.includes('label') && (typeof record['label'] !== 'string' || !record['label'].trim() || record['label'].length > 80 || /[\u0000-\u001f\u007f]/u.test(record['label']))) return undefined
   if (keys.includes('patch') && !closedPatch(record['patch'])) return undefined
   return record as unknown as ToolkitAction
