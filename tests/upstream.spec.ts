@@ -1,7 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkBuddyCredential } from '../src/auth.ts'
 import { FALLBACK_WORKBUDDY_MODELS } from '../src/catalog.ts'
 import { classifyUpstreamError, extractDisplayErrorMessage, normalizeCredits, parseModelCatalog, WorkBuddyUpstreamClient } from '../src/upstream.ts'
+import { resolveChatIdentity } from '../src/client-identity.ts'
+
+vi.mock('../src/client-identity.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/client-identity.ts')>(),
+  resolveChatIdentity: vi.fn(async () => { throw new Error('Inject desktop identity in offline upstream tests') }),
+}))
 
 /**
  * Offline unit tests for WorkBuddyUpstreamClient, mocking the global `fetch`
@@ -48,8 +54,10 @@ function fakeResponse(body: string, ok = true, status = 200): Response {
   } as unknown as Response
 }
 
+beforeEach(() => { vi.mocked(resolveChatIdentity).mockClear() })
 afterEach(() => {
   vi.unstubAllGlobals()
+  expect(resolveChatIdentity).not.toHaveBeenCalled()
 })
 
 describe('WorkBuddyUpstreamClient.fetchModels', () => {
@@ -775,7 +783,7 @@ describe('WorkBuddyUpstreamClient.fetchModels badge merge', () => {
       calls.push(String(url instanceof Request ? url.url : url))
       return fakeResponse(calls.length === 1 ? configEnvelope : consoleEnvelope)
     }))
-    const models = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const models = await catalogClient().fetchModels(CREDENTIAL)
     // Second request is the console badge read, against the same CN base.
     expect(calls).toHaveLength(3)
     expect(calls[2]).toContain('/v3/config')
@@ -790,7 +798,7 @@ describe('WorkBuddyUpstreamClient.fetchModels badge merge', () => {
       if (calls.length === 1) return fakeResponse(configEnvelope)
       throw new Error('console endpoint offline')
     }))
-    const withoutBadges = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const withoutBadges = await catalogClient().fetchModels(CREDENTIAL)
     expect(calls).toHaveLength(3)
     expect(calls[2]).toContain('/v3/config')
     expect(withoutBadges.map(model => model.id)).toEqual(['m-1'])
