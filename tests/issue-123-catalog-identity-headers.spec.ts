@@ -75,7 +75,9 @@ describe('issue #123: catalog identity headers', () => {
   it('a personal account keeps the bare catalog headers of 0.7.5', async () => {
     const { calls } = captureCatalogWire()
     await new WorkBuddyUpstreamClient().fetchModels(PERSONAL)
-    expect(calls).toHaveLength(2)
+    expect(calls).toHaveLength(3)
+    expect(calls[0]?.headers['User-Agent']).toMatch(/^CLI\//u)
+    expect(calls[2]?.headers['User-Agent']).toMatch(/^WorkBuddy\//u)
     for (const { headers } of calls) {
       expect(headers['X-User-Id']).toBeUndefined()
       expect(headers['X-Enterprise-Id']).toBeUndefined()

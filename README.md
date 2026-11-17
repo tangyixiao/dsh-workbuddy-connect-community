@@ -25,7 +25,7 @@
 Desktop：从发行页下载 `.tgz`，在“扩展 → 插件管理 → 添加插件”中安装。命令行示例用于你明确控制的 Web profile：
 
 ```sh
-dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.22
+dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.23
 ```
 
 先登录对应桌面客户端。安装社区包后，先停用原 `dsh-workbuddy-connect` 再启用社区包；两者使用相同 provider ID。CLI 诊断用 `dsh-workbuddy-connect-community doctor --share`。
@@ -34,13 +34,15 @@ dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.22
 
 | 项目 | 当前依据 |
 | --- | --- |
-| 源码版本 | `0.1.22` · 以 [package.json](package.json) 为准 |
+| 源码版本 | `0.1.23` · 以 [package.json](package.json) 为准 |
 | 分发方式 | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
 | DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1 \|\| 0.2.2-rc.3` |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |
 | 开发状态 | [Open issues](https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues?q=is%3Aissue+is%3Aopen) · [CI](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions) |
 
 消息旁的 `usage.credit` 仅是已关联到该消息的单次上游响应观测值；记录有内存容量上限，可能消失，不是持久账单或会话总费用。另提供有容量上限的本插件用量留存，与消息旁的短期记录分别处理；不包含其他客户端的官方总消耗。模型目录、登录状态与真实上游请求须分别验证。
+
+`0.1.23` 保留 `0.1.22` 的宿主 HTTP 准入保护，并结合上下文档位刷新修复：CN 个人账号的本地缓存过期且 CLI 未声明档位时，补读匹配模型的上下文信息；仍无可选档位时显示只读预算。见[发布说明](docs/release-notes-0.1.23.md)。
 
 [账号额度、用量留存与签到结果](docs/accounts-and-usage.md) · [详细使用、配置与故障排查](docs/guide.zh-CN.md) · [逐项验收](docs/acceptance.md) · [功能路线与前置条件](docs/roadmap.md)
 

@@ -5,6 +5,26 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { WorkBuddyProbeControl, type WorkBuddyProbeControlProps } from '../src/client/WorkBuddyProbeControl.tsx'
 import { en } from '../src/client/locales.ts'
 
+it.each([{ supportedContextWindows: undefined }, { supportedContextWindows: [1000000] }])('keeps a read-only context row when alternatives are unavailable (%j)', async ({ supportedContextWindows }) => {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  document.body.innerHTML = `<div><div id="mount"></div><button aria-haspopup="menu" aria-expanded="true" aria-controls="menu"><span data-provider-id="workbuddy" data-model-id="flash">Flash</span></button></div><div id="menu" role="menu"><button role="menuitem"><span data-provider-id="workbuddy" data-model-id="flash">Flash</span></button></div>`
+  const status = { status: 'signed-in', probeKey: 'key', visibility: { account: 'account', disabled: [] }, models: [{ id: 'flash', name: 'Flash', contextWindow: 1000000, supportedContextWindows }] }
+  const fetchMock = vi.fn(async () => ({ ok: true, json: async () => status }))
+  vi.stubGlobal('fetch', fetchMock)
+  const snapshot = { current: { provider: 'workbuddy', model: 'flash' } }
+  const directory = { getSnapshot: () => snapshot, subscribe: () => () => {} } as unknown as WorkBuddyProbeControlProps['directory']
+  const root = createRoot(document.querySelector('#mount')!)
+  try {
+    await act(async () => { root.render(createElement(WorkBuddyProbeControl, { directory, t: key => en[key] })) })
+    const row = document.querySelector<HTMLButtonElement>('[data-workbuddy-context-row]')
+    expect(row).not.toBeNull()
+    expect(row?.textContent).toContain('1000K')
+    expect(row?.disabled).toBe(true)
+    expect(row?.title).toBe(en.contextTiersUnavailable)
+    expect(document.querySelectorAll('[role="menuitemradio"]')).toHaveLength(0)
+  } finally { await act(async () => root.unmount()); vi.unstubAllGlobals(); document.body.innerHTML = '' }
+})
+
 it('places the context control under model and reasoning and saves a selection', async () => {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   document.body.innerHTML = `<div id="composer"><div id="mount"></div><button aria-haspopup="menu" aria-expanded="true" aria-controls="model-menu"><span data-provider-id="workbuddy" data-model-id="hy4free">Hy4</span></button></div><div id="model-menu" role="menu"><button role="menuitem" class="_abc_cell"><span class="_abc_cellLabel">Model</span><span class="_abc_cellValue"><span data-provider-id="workbuddy" data-model-id="hy4free">Hy4</span></span><svg class="_abc_cellChevron"></svg></button><button role="menuitem" class="_abc_cell">Reasoning</button></div>`
