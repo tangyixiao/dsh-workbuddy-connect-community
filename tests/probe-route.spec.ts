@@ -1,6 +1,7 @@
 import { createServer, request as httpRequest, type Server } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createProbeKey, workBuddyProbeHandler, type WorkBuddyProbeRouteOptions } from '../src/probe-route.ts'
+import { bindToUsablePort } from '../src/loopback.ts'
 
 /**
  * Offline tests for the probe control route, the plugin's only state-changing
@@ -32,7 +33,7 @@ async function mount(deps?: Partial<WorkBuddyProbeRouteOptions>): Promise<{ orig
     ...deps,
   }, key)
   server = createServer((req, res) => { void handler(req, res) })
-  await new Promise<void>(resolve => server?.listen(0, '127.0.0.1', () => resolve()))
+  await bindToUsablePort(server, { host: '127.0.0.1' })
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('no port')
   return { origin: `http://127.0.0.1:${address.port}`, key, calls }

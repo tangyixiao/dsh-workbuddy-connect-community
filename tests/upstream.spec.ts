@@ -19,6 +19,11 @@ const CREDENTIAL: WorkBuddyCredential = {
   source: 'desktop',
 }
 
+/** Catalog parsing fixtures must not discover an installed desktop identity. */
+const catalogClient = () => new WorkBuddyUpstreamClient({
+  resolveChatIdentity: async () => ({ clientVersion: '5.5.6', cliVersion: '2.63.2' }),
+})
+
 /** Build the nested upstream billing document that `fetchCredits` unwraps. */
 function billingEnvelope(accounts: unknown[]): string {
   return JSON.stringify({
@@ -69,7 +74,7 @@ describe('WorkBuddyUpstreamClient.fetchModels', () => {
       { id: 'm-noncli', name: 'Not A CLI Model', maxInputTokens: 100_000, maxOutputTokens: 32_000, supportsImages: true },
     ], ['m-img', 'm-muted', 'm-text', 'm-unknown']))))
 
-    const models = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const models = await catalogClient().fetchModels(CREDENTIAL)
     const byId = new Map(models.map(model => [model.id, model]))
 
     expect(models).toHaveLength(4)
@@ -85,7 +90,7 @@ describe('WorkBuddyUpstreamClient.fetchModels', () => {
       { id: 'm-1', name: 'Model One', maxInputTokens: 168_000, maxOutputTokens: 32_000, supportsImages: true },
     ], ['m-1']))))
 
-    const models = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const models = await catalogClient().fetchModels(CREDENTIAL)
     expect(models).toHaveLength(1)
     expect(models[0]).toEqual({
       id: 'm-1',
@@ -124,7 +129,7 @@ describe('WorkBuddyUpstreamClient.fetchModels', () => {
       },
     ], ['m-reason', 'm-free', 'm-plain']))))
 
-    const models = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const models = await catalogClient().fetchModels(CREDENTIAL)
     const byId = new Map(models.map(model => [model.id, model]))
 
     expect(byId.get('m-reason')?.reasoning).toEqual({
@@ -156,7 +161,7 @@ describe('WorkBuddyUpstreamClient.fetchModels', () => {
       { id: 'm-paid-suffix', name: 'Paid Suffixed', maxInputTokens: 100_000, maxOutputTokens: 32_000, credits: 'x0.79 credits' },
     ], ['m-suffix', 'm-paid-suffix']))))
 
-    const models = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const models = await catalogClient().fetchModels(CREDENTIAL)
     const byId = new Map(models.map(model => [model.id, model]))
     expect(byId.get('m-suffix')?.billing).toEqual({ credits: 'x0.00 credits', free: true })
     expect(byId.get('m-paid-suffix')?.billing).toEqual({ credits: 'x0.79 credits', free: false })
