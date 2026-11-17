@@ -12,16 +12,17 @@ const credential = { uid: 'context-account', domain: 'www.codebuddy.cn', accessT
 const cli = { models: [{ id: 'flash', maxInputTokens: 1000000, maxOutputTokens: 128000 }], agents: [{ name: 'cli', models: ['flash'] }] }
 const row = { id: 'flash', maxInputTokens: 1000000, contextWindow: { defaultLength: 300000, supportedLengths: [300000, 600000, 1000000] } }
 
-function fixture(product: unknown, failure = false, primary: unknown = cli) {
+function fixture(product: unknown, failure = false, primary: unknown = cli, desktopCliVersion?: string) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const headers = init?.headers as Record<string, string>
     if (String(url).includes('/console/')) return new Response(JSON.stringify({ code: 0, data: { models: [] } }))
     if (headers['User-Agent']?.startsWith('CLI/')) return new Response(JSON.stringify({ code: 0, data: primary }))
     if (failure) throw new Error('desktop config unavailable')
+    if (!headers['User-Agent']?.includes('CLI/')) return new Response(JSON.stringify({ code: 0, data: { models: [] } }))
     return new Response(JSON.stringify({ code: 0, data: product }))
   })
   vi.stubGlobal('fetch', fetchMock)
-  const client = new WorkBuddyUpstreamClient({ resolveChatIdentity: async () => ({ clientVersion: '5.5.6' }) })
+  const client = new WorkBuddyUpstreamClient({ resolveChatIdentity: async () => ({ clientVersion: '5.5.6', ...desktopCliVersion === undefined ? {} : { cliVersion: desktopCliVersion } }) })
   return { client, fetchMock }
 }
 
@@ -31,7 +32,14 @@ it('refreshes missing CN tiers when no fresh desktop snapshot is available, reta
   expect(models).toHaveLength(1)
   expect(models[0]).toMatchObject({ id: 'flash', contextWindow: 1000000, defaultContextWindow: 300000, supportedContextWindows: [300000, 600000, 1000000] })
   expect(fetchMock.mock.calls).toHaveLength(3)
+  expect((fetchMock.mock.calls[2]?.[1]?.headers as Record<string, string>)['User-Agent']).toBe('WorkBuddy/5.5.6 WorkBuddy/5.5.6 CLI/2.63.2')
   expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('/chat/completions'))).toBe(true)
+})
+
+it('uses a resolved desktop CLI version when available', async () => {
+  const { client, fetchMock } = fixture({ models: [row] }, false, cli, '2.176.0')
+  expect((await client.fetchModels(credential))[0]?.supportedContextWindows).toEqual([300000, 600000, 1000000])
+  expect((fetchMock.mock.calls[2]?.[1]?.headers as Record<string, string>)['User-Agent']).toBe('WorkBuddy/5.5.6 WorkBuddy/5.5.6 CLI/2.176.0')
 })
 
 it('keeps the CLI budget when the supplementary read fails or its input cap does not match', async () => {

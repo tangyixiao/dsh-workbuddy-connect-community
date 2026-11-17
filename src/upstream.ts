@@ -239,7 +239,8 @@ function describeShape(document: unknown): string {
 }
 
 /** Shared CLI-form User-Agent for refresh and the CN catalog; chat and probe present the desktop identity (client-identity.ts). */
-const CLIENT_UA = 'CLI/2.63.2 CodeBuddy/2.63.2'
+const CLIENT_CLI_VERSION = '2.63.2'
+const CLIENT_UA = `CLI/${CLIENT_CLI_VERSION} CodeBuddy/${CLIENT_CLI_VERSION}`
 const JSON_TIMEOUT_MS = 30_000
 const ERROR_BODY_LIMIT = 4096
 
@@ -1114,7 +1115,9 @@ export class WorkBuddyUpstreamClient {
           Accept: 'application/json',
           Origin: originReferer(credential),
           Referer: `${originReferer(credential)}/`,
-          'User-Agent': chatUserAgent(identity, 'cn'),
+          // Without a CLI token the gateway serves an older desktop roster.
+          // Reuse the primary catalog's existing identity when discovery omits it.
+          'User-Agent': chatUserAgent({ ...identity, cliVersion: identity.cliVersion ?? CLIENT_CLI_VERSION }, 'cn'),
         },
         signal: signal === undefined ? AbortSignal.timeout(5000) : AbortSignal.any([signal, AbortSignal.timeout(5000)]),
       })
