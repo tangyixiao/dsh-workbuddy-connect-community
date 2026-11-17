@@ -520,6 +520,7 @@ function ModelProbe({ model, card, label, t }: {
   const contextModel = status?.status === 'signed-in' ? status.models?.find(item => item.id === model) : undefined
   const contextAccount = status?.status === 'signed-in' ? status.visibility?.account : undefined
   const contextKey = status?.status === 'signed-in' ? status.probeKey : undefined
+  const contextSelectable = (contextModel?.supportedContextWindows?.length ?? 0) > 1
   useEffect(() => {
     if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return
     const update = () => {
@@ -534,13 +535,13 @@ function ModelProbe({ model, card, label, t }: {
   }, [card.id, model])
   useEffect(() => { setContextOpen(false) }, [contextMenu])
   useEffect(() => {
-    if (!contextOpen || contextMenu === undefined) return
+    if (!contextOpen || !contextSelectable || contextAccount === undefined || contextKey === undefined || contextMenu === undefined) return
     const rows = Array.from(contextMenu.children).filter((element): element is HTMLElement => element instanceof HTMLElement && element.getAttribute('role') === 'menuitem')
     const old = rows.map(row => ({ hidden: row.hidden, display: row.style.display }))
     rows.forEach(row => { row.hidden = true; row.style.display = 'none' })
     contextPanel.current?.querySelector<HTMLButtonElement>('button[aria-checked="true"]')?.focus()
     return () => rows.forEach((row, index) => { row.hidden = old[index]?.hidden ?? false; row.style.display = old[index]?.display ?? '' })
-  }, [contextMenu, contextOpen])
+  }, [contextMenu, contextOpen, contextSelectable, contextAccount, contextKey])
   const setContextWindow = async (window: number): Promise<void> => {
     if (contextAccount === undefined || contextKey === undefined || contextBusy) return
     setContextBusy(true)
@@ -600,8 +601,8 @@ function ModelProbe({ model, card, label, t }: {
       </button>
 
       {credit === undefined ? null : <span style={creditStyle}>{credit}</span>}
-      {contextMenu !== undefined && contextAccount !== undefined && contextKey !== undefined && contextModel?.contextWindow !== undefined && (contextModel.supportedContextWindows?.length ?? 0) > 1 ? createPortal(
-        contextOpen ? (
+      {contextMenu !== undefined && contextModel?.contextWindow !== undefined ? createPortal(
+        contextOpen && contextSelectable && contextAccount !== undefined && contextKey !== undefined ? (
           <div ref={contextPanel} role="group" aria-label={t('contextHeading')} onKeyDown={event => {
             if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setContextOpen(false); requestAnimationFrame(() => contextRow.current?.focus()) }
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -626,10 +627,12 @@ function ModelProbe({ model, card, label, t }: {
             {contextError === undefined ? null : <span role="alert">{contextError}</span>}
           </div>
         ) : (
-          <button ref={contextRow} type="button" role="menuitem" data-workbuddy-context-row className={hostRow?.className} disabled={contextBusy} onClick={() => setContextOpen(true)}>
+          <button ref={contextRow} type="button" role="menuitem" data-workbuddy-context-row className={hostRow?.className}
+            disabled={contextBusy || !contextSelectable || contextAccount === undefined || contextKey === undefined}
+            title={contextSelectable ? undefined : t('contextTiersUnavailable')} onClick={() => setContextOpen(true)}>
             <span className={hostLabelClass}>{t('contextHeading')}</span>
             <span className={hostValueClass}>{contextModel.contextWindow >= 1000 && contextModel.contextWindow % 1000 === 0 ? `${contextModel.contextWindow / 1000}K` : contextModel.contextWindow}</span>
-            <svg className={hostChevronClass} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+            {contextSelectable ? <svg className={hostChevronClass} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg> : null}
           </button>
         ), contextMenu
       ) : null}

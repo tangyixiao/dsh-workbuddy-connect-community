@@ -1,7 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkBuddyCredential } from '../src/auth.ts'
 import { FALLBACK_WORKBUDDY_MODELS } from '../src/catalog.ts'
 import { classifyUpstreamError, extractDisplayErrorMessage, normalizeCredits, parseModelCatalog, WorkBuddyUpstreamClient } from '../src/upstream.ts'
+import { resolveChatIdentity } from '../src/client-identity.ts'
+
+vi.mock('../src/client-identity.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/client-identity.ts')>(),
+  resolveChatIdentity: vi.fn(async () => { throw new Error('Inject desktop identity in offline upstream tests') }),
+}))
 
 /**
  * Offline unit tests for WorkBuddyUpstreamClient, mocking the global `fetch`
@@ -18,6 +24,11 @@ const CREDENTIAL: WorkBuddyCredential = {
   uid: 'uid-1',
   source: 'desktop',
 }
+
+/** Catalog parsing fixtures must not discover an installed desktop identity. */
+const catalogClient = () => new WorkBuddyUpstreamClient({
+  resolveChatIdentity: async () => ({ clientVersion: '5.5.6', cliVersion: '2.63.2' }),
+})
 
 /** Build the nested upstream billing document that `fetchCredits` unwraps. */
 function billingEnvelope(accounts: unknown[]): string {
@@ -43,8 +54,10 @@ function fakeResponse(body: string, ok = true, status = 200): Response {
   } as unknown as Response
 }
 
+beforeEach(() => { vi.mocked(resolveChatIdentity).mockClear() })
 afterEach(() => {
   vi.unstubAllGlobals()
+  expect(resolveChatIdentity).not.toHaveBeenCalled()
 })
 
 describe('WorkBuddyUpstreamClient.fetchModels', () => {
@@ -69,7 +82,7 @@ describe('WorkBuddyUpstreamClient.fetchModels', () => {
       { id: 'm-noncli', name: 'Not A CLI Model', maxInputTokens: 100_000, maxOutputTokens: 32_000, supportsImages: true },
     ], ['m-img', 'm-muted', 'm-text', 'm-unknown']))))
 
-    const models = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const models = await catalogClient().fetchModels(CREDENTIAL)
     const byId = new Map(models.map(model => [model.id, model]))
 
     expect(models).toHaveLength(4)
@@ -85,7 +98,7 @@ describe('WorkBuddyUpstreamClient.fetchModels', () => {
       { id: 'm-1', name: 'Model One', maxInputTokens: 168_000, maxOutputTokens: 32_000, supportsImages: true },
     ], ['m-1']))))
 
-    const models = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const models = await catalogClient().fetchModels(CREDENTIAL)
     expect(models).toHaveLength(1)
     expect(models[0]).toEqual({
       id: 'm-1',
@@ -124,7 +137,7 @@ describe('WorkBuddyUpstreamClient.fetchModels', () => {
       },
     ], ['m-reason', 'm-free', 'm-plain']))))
 
-    const models = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const models = await catalogClient().fetchModels(CREDENTIAL)
     const byId = new Map(models.map(model => [model.id, model]))
 
     expect(byId.get('m-reason')?.reasoning).toEqual({
@@ -156,7 +169,7 @@ describe('WorkBuddyUpstreamClient.fetchModels', () => {
       { id: 'm-paid-suffix', name: 'Paid Suffixed', maxInputTokens: 100_000, maxOutputTokens: 32_000, credits: 'x0.79 credits' },
     ], ['m-suffix', 'm-paid-suffix']))))
 
-    const models = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const models = await catalogClient().fetchModels(CREDENTIAL)
     const byId = new Map(models.map(model => [model.id, model]))
     expect(byId.get('m-suffix')?.billing).toEqual({ credits: 'x0.00 credits', free: true })
     expect(byId.get('m-paid-suffix')?.billing).toEqual({ credits: 'x0.79 credits', free: false })
@@ -770,9 +783,10 @@ describe('WorkBuddyUpstreamClient.fetchModels badge merge', () => {
       calls.push(String(url instanceof Request ? url.url : url))
       return fakeResponse(calls.length === 1 ? configEnvelope : consoleEnvelope)
     }))
-    const models = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
+    const models = await catalogClient().fetchModels(CREDENTIAL)
     // Second request is the console badge read, against the same CN base.
-    expect(calls).toHaveLength(2)
+    expect(calls).toHaveLength(3)
+    expect(calls[2]).toContain('/v3/config')
     expect(calls[1]).toContain('/console/enterprises/personal/models')
     expect(calls[0]).toContain('/v3/config')
     expect(models[0]?.billing).toEqual({ credits: 'x0.00 credits', badges: ['限时免费'], free: true })
@@ -784,8 +798,9 @@ describe('WorkBuddyUpstreamClient.fetchModels badge merge', () => {
       if (calls.length === 1) return fakeResponse(configEnvelope)
       throw new Error('console endpoint offline')
     }))
-    const withoutBadges = await new WorkBuddyUpstreamClient().fetchModels(CREDENTIAL)
-    expect(calls).toHaveLength(2)
+    const withoutBadges = await catalogClient().fetchModels(CREDENTIAL)
+    expect(calls).toHaveLength(3)
+    expect(calls[2]).toContain('/v3/config')
     expect(withoutBadges.map(model => model.id)).toEqual(['m-1'])
     expect(withoutBadges[0]?.billing).toEqual({ credits: 'x0.00 credits', free: true })
   })

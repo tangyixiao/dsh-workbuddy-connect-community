@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WorkBuddyCredential } from '../src/auth.ts'
 import { WorkBuddyUpstreamClient } from '../src/upstream.ts'
-import type { ChatIdentity } from '../src/client-identity.ts'
+import { chatUserAgent, type ChatIdentity } from '../src/client-identity.ts'
 
 /**
  * Outbound wire pin for the phase-1 chat identity (plan §3, 阶段一离线检查):
@@ -37,6 +37,7 @@ function captureFetch(body: string, ok = true, status = 200) {
   const fetchMock = vi.fn(async () => fakeResponse(body, ok, status))
   vi.stubGlobal('fetch', fetchMock)
   return {
+    calls: () => fetchMock.mock.calls as unknown as [string, RequestInit][],
     last: () => {
       expect(fetchMock).toHaveBeenCalled()
       return fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as unknown as [string, RequestInit]
@@ -175,8 +176,11 @@ describe('unchanged paths (regression pin)', () => {
       data: { models: [{ id: 'm', name: 'M', maxInputTokens: 100, maxOutputTokens: 10 }], agents: [{ name: 'cli', models: ['m'] }] },
     }))
     await client().fetchModels(CN)
-    const [url, init] = wire.last()
+    const calls = wire.calls()
+    const [url, init] = calls[1]!
     expect(url).toBe('https://copilot.tencent.com/console/enterprises/personal/models')
+    expect(calls[0]?.[1].headers).toMatchObject({ 'User-Agent': 'CLI/2.63.2 CodeBuddy/2.63.2' })
+    expect(calls[2]?.[1].headers).toMatchObject({ 'User-Agent': chatUserAgent(IDENTITY, 'cn') })
     const headers = init.headers as Record<string, string>
     expect(headers['User-Agent']).toBe('CLI/2.63.2 CodeBuddy/2.63.2')
     expect(headers['X-IDE-Type']).toBeUndefined()

@@ -12,7 +12,7 @@ export function mergeDesktopContextWindows(models: readonly WorkBuddyUpstreamMod
   if (!Array.isArray(raw)) return models
   const byId = new Map(raw.map(record).filter((item): item is Record<string, unknown> => item !== undefined && typeof item['id'] === 'string').map(item => [item['id'], item]))
   return models.map(model => {
-    if ((model.supportedContextWindows?.length ?? 0) > 1) return model
+    if (model.supportedContextWindows !== undefined) return model
     const row = byId.get(model.id)
     const cap = model.maxInputTokens ?? model.contextWindow
     if (row?.['maxInputTokens'] !== cap) return model

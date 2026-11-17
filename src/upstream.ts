@@ -239,7 +239,8 @@ function describeShape(document: unknown): string {
 }
 
 /** Shared CLI-form User-Agent for refresh and the CN catalog; chat and probe present the desktop identity (client-identity.ts). */
-const CLIENT_UA = 'CLI/2.63.2 CodeBuddy/2.63.2'
+const CLIENT_CLI_VERSION = '2.63.2'
+const CLIENT_UA = `CLI/${CLIENT_CLI_VERSION} CodeBuddy/${CLIENT_CLI_VERSION}`
 const JSON_TIMEOUT_MS = 30_000
 const ERROR_BODY_LIMIT = 4096
 
@@ -806,9 +807,8 @@ export interface WorkBuddyUpstreamClientOptions {
   /** App-version resolver for international catalog requests; injectable for tests. */
   resolveAppVersion?: () => Promise<AppVersionInfo>
   /**
-   * Chat-identity resolver for chat and probe requests; injectable for tests.
-   * Defaults to `client-identity.ts`'s per-region chain. Refresh, catalog, and
-   * billing never consult it — those requests keep their long-standing headers.
+   * Desktop identity for chat, probes and the supplementary CN context read.
+   * The primary CLI roster, refresh and billing retain their existing headers.
    */
   resolveChatIdentity?: (region: WorkBuddyRegion) => Promise<ChatIdentity>
 }
@@ -1092,13 +1092,39 @@ export class WorkBuddyUpstreamClient {
         promotionProvenance: { source: international || fromDesktop ? 'product-config' as const : 'console-models' as const, fetchedAt: fromDesktop && desktop !== undefined ? desktop.fetchedAt : fetchedAt },
       }
     })
-    const models = international ? parsed : mergeDesktopContextWindows(parsed, desktop?.product)
+    let models = international ? parsed : mergeDesktopContextWindows(parsed, desktop?.product)
+    if (!international && credential.uid !== '' && !credential.enterpriseId && models.some(model => model.supportedContextWindows === undefined)) {
+      const product = await this.fetchContextProduct(credential, signal)
+      models = mergeDesktopContextWindows(models, product)
+    }
     this.lastCatalog = {
       fetchedAtMs: Date.now(),
       source: international ? 'workbuddy-ai:app' : 'workbuddy:cli',
       ...appVersion === undefined ? {} : { appVersion },
     }
     return models
+  }
+
+  /** Refresh missing context tiers without replacing the CLI roster or its capabilities. */
+  private async fetchContextProduct(credential: WorkBuddyCredential, signal?: AbortSignal): Promise<unknown> {
+    try {
+      const identity = await this.resolveChatIdentity('cn')
+      const response = await fetch(`${chatBase(credential)}/v3/config`, {
+        headers: {
+          Authorization: `Bearer ${credential.accessToken}`,
+          Accept: 'application/json',
+          Origin: originReferer(credential),
+          Referer: `${originReferer(credential)}/`,
+          // Without a CLI token the gateway serves an older desktop roster.
+          // Reuse the primary catalog's existing identity when discovery omits it.
+          'User-Agent': chatUserAgent({ ...identity, cliVersion: identity.cliVersion ?? CLIENT_CLI_VERSION }, 'cn'),
+        },
+        signal: signal === undefined ? AbortSignal.timeout(5000) : AbortSignal.any([signal, AbortSignal.timeout(5000)]),
+      })
+      const envelope = await readEnvelope(response)
+      if (!response.ok || envelope.code !== 0) return undefined
+      return isObject(envelope.data) ? envelope.data : envelope.document
+    } catch { return undefined }
   }
 
   /**

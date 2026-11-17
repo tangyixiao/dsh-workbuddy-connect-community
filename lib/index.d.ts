@@ -469,9 +469,8 @@ interface WorkBuddyUpstreamClientOptions {
   /** App-version resolver for international catalog requests; injectable for tests. */
   resolveAppVersion?: () => Promise<AppVersionInfo>;
   /**
-   * Chat-identity resolver for chat and probe requests; injectable for tests.
-   * Defaults to `client-identity.ts`'s per-region chain. Refresh, catalog, and
-   * billing never consult it — those requests keep their long-standing headers.
+   * Desktop identity for chat, probes and the supplementary CN context read.
+   * The primary CLI roster, refresh and billing retain their existing headers.
    */
   resolveChatIdentity?: (region: WorkBuddyRegion) => Promise<ChatIdentity>;
 }
@@ -534,6 +533,8 @@ export declare class WorkBuddyUpstreamClient {
    * such rather than as a generic catalog failure.
    */
   fetchModels(credential: WorkBuddyCredential, signal?: AbortSignal): Promise<readonly WorkBuddyUpstreamModel[]>;
+  /** Refresh missing context tiers without replacing the CLI roster or its capabilities. */
+  private fetchContextProduct;
   /**
    * Read the console catalog's promotional tags, by model id.
    *
