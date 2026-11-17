@@ -87,7 +87,7 @@ class FakeWebServer extends Service {
     // This lifecycle fixture represents a signed-in Host owner. Real cookie
     // authentication is covered separately in host-route-auth.spec.ts.
     ctx.provide('connection', {
-      admit: () => ({ peer: { principal: { kind: 'owner' } } }),
+      requestRejection: () => undefined, admit: () => ({ peer: { principal: { kind: 'owner' } } }),
     } as unknown as Context['connection'])
     FakeWebServer.current = this
   }

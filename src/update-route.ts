@@ -9,6 +9,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import { withWorkBuddyHostAuth } from './host-route-auth.ts'
 import { hostIsLoopback, originIsLoopback } from './loopback.ts'
 import { WORKBUDDY_UPDATE_PATH } from './status-paths.ts'
 import { checkWorkBuddyUpdate, WORKBUDDY_UPDATE_TIMEOUT_MS } from './update.ts'
@@ -76,7 +77,7 @@ export function registerWorkBuddyUpdateRoute(ctx: Context, options: WorkBuddyUpd
     const dispose = ctx.webServer.register({
       kind: 'exact',
       path: WORKBUDDY_UPDATE_PATH,
-      handler: workBuddyUpdateHandler(options),
+      handler: withWorkBuddyHostAuth(ctx, workBuddyUpdateHandler(options)),
     })
     return () => {
       dispose()

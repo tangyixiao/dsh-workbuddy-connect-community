@@ -27,7 +27,7 @@ class FakeWebServer extends Service {
     // These settings tests model requests from a signed-in Host owner.
     // host-route-auth.spec.ts exercises real signed cookies and rejection.
     ctx.provide('connection', {
-      admit: () => ({ peer: { principal: { kind: 'owner' } } }),
+      requestRejection: () => undefined, admit: () => ({ peer: { principal: { kind: 'owner' } } }),
     } as unknown as Context['connection'])
     FakeWebServer.current = this
   }
