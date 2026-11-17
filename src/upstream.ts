@@ -806,9 +806,8 @@ export interface WorkBuddyUpstreamClientOptions {
   /** App-version resolver for international catalog requests; injectable for tests. */
   resolveAppVersion?: () => Promise<AppVersionInfo>
   /**
-   * Chat-identity resolver for chat and probe requests; injectable for tests.
-   * Defaults to `client-identity.ts`'s per-region chain. Refresh, catalog, and
-   * billing never consult it — those requests keep their long-standing headers.
+   * Desktop identity for chat, probes and the supplementary CN context read.
+   * The primary CLI roster, refresh and billing retain their existing headers.
    */
   resolveChatIdentity?: (region: WorkBuddyRegion) => Promise<ChatIdentity>
 }
@@ -1092,13 +1091,37 @@ export class WorkBuddyUpstreamClient {
         promotionProvenance: { source: international || fromDesktop ? 'product-config' as const : 'console-models' as const, fetchedAt: fromDesktop && desktop !== undefined ? desktop.fetchedAt : fetchedAt },
       }
     })
-    const models = international ? parsed : mergeDesktopContextWindows(parsed, desktop?.product)
+    let models = international ? parsed : mergeDesktopContextWindows(parsed, desktop?.product)
+    if (!international && credential.uid !== '' && !credential.enterpriseId && models.some(model => model.supportedContextWindows === undefined)) {
+      const product = await this.fetchContextProduct(credential, signal)
+      models = mergeDesktopContextWindows(models, product)
+    }
     this.lastCatalog = {
       fetchedAtMs: Date.now(),
       source: international ? 'workbuddy-ai:app' : 'workbuddy:cli',
       ...appVersion === undefined ? {} : { appVersion },
     }
     return models
+  }
+
+  /** Refresh missing context tiers without replacing the CLI roster or its capabilities. */
+  private async fetchContextProduct(credential: WorkBuddyCredential, signal?: AbortSignal): Promise<unknown> {
+    try {
+      const identity = await this.resolveChatIdentity('cn')
+      const response = await fetch(`${chatBase(credential)}/v3/config`, {
+        headers: {
+          Authorization: `Bearer ${credential.accessToken}`,
+          Accept: 'application/json',
+          Origin: originReferer(credential),
+          Referer: `${originReferer(credential)}/`,
+          'User-Agent': chatUserAgent(identity, 'cn'),
+        },
+        signal: signal === undefined ? AbortSignal.timeout(5000) : AbortSignal.any([signal, AbortSignal.timeout(5000)]),
+      })
+      const envelope = await readEnvelope(response)
+      if (!response.ok || envelope.code !== 0) return undefined
+      return isObject(envelope.data) ? envelope.data : envelope.document
+    } catch { return undefined }
   }
 
   /**

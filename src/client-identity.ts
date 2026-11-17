@@ -11,9 +11,8 @@
  * `CLI/…` token instead of inventing one (the official client's own rule for
  * a missing extension).
  *
- * Scope: chat and probe requests ONLY. Refresh, catalog, and billing keep
- * the headers they have always sent; the plan holds the blast radius to this
- * one variable so the live verification matrix stays readable.
+ * Chat, probes and the supplementary CN context metadata read use this identity.
+ * The primary CLI roster, refresh and billing retain their existing headers.
  *
  * @module dsh-workbuddy-connect/client-identity
  */
