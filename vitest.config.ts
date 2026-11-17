@@ -20,5 +20,11 @@ export default defineConfig({
     environment: 'node',
     // SDK imports and real loopback fixtures must not exhaust a desktop's memory.
     maxWorkers: 2,
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.d.ts'],
+      reporter: ['text-summary', 'lcov', 'html', 'json-summary'],
+    },
   },
 })
