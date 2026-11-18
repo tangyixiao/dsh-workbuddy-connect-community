@@ -383,7 +383,12 @@ export function createWorkBuddyAdapter(options: WorkBuddyAdapterOptions): WorkBu
     // unchanged, so concurrent calls prepared after a refresh see new facts.
     const models = buildModels().filter(entry => entry.id === model)
     const capturedProvider: Provider = { ...provider, getModels: () => models }
-    const capturedProfiles = new Map([[providerId, { ...profile, piProvider: capturedProvider }]])
+    const capturedProfiles = new Map([[providerId, {
+      ...profile,
+      piProvider: capturedProvider,
+      // Older hosts only forward profile headers; keep the scope local to this call.
+      ...(scope === undefined ? {} : { headers: { ...profile.headers, [WORKBUDDY_ACCOUNT_SCOPE_HEADER]: scope } }),
+    }]])
     const capturedAdapter = new PiAiAdapter({ ...adapterOptions, profiles: () => capturedProfiles,
       ...(scope === undefined ? {} : { prepareHeaders: (_request, headers) => { headers.set(WORKBUDDY_ACCOUNT_SCOPE_HEADER, scope); return headers } }),
     })

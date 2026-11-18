@@ -1,12 +1,25 @@
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
+import type { PiAiAdapterOptions } from '@deepseek-ai/dsh-llm-pi-ai'
 import { createWorkBuddyAdapter } from '../src/adapter.ts'
 import { WorkBuddyCatalog } from '../src/catalog.ts'
 import { createWorkBuddyShim, type WorkBuddyShim } from '../src/shim.ts'
 import type { WorkBuddyCredential, WorkBuddyCredentialStore } from '../src/auth.ts'
 import { workBuddyRequestScope } from '../src/account-scope.ts'
 
+const compatibility = vi.hoisted(() => ({ profileHeadersOnly: false }))
+vi.mock('@deepseek-ai/dsh-llm-pi-ai', async importOriginal => {
+  const actual = await importOriginal<typeof import('@deepseek-ai/dsh-llm-pi-ai')>()
+  return { ...actual, PiAiAdapter: class extends actual.PiAiAdapter {
+    constructor(options: PiAiAdapterOptions) {
+      // DSH 0.2.1-rc.5 ignores prepareHeaders and only reads profile.headers.
+      const { prepareHeaders, ...legacyOptions } = options
+      super(compatibility.profileHeadersOnly ? legacyOptions : options)
+    }
+  } }
+})
+
 let shim: WorkBuddyShim | undefined
-afterEach(async () => { await shim?.close(); shim = undefined })
+afterEach(async () => { await shim?.close(); shim = undefined; compatibility.profileHeadersOnly = false })
 
 it('keeps same-region domain aliases in the same billing scope', () => {
   const identity = { uid: 'a', enterpriseId: 'enterprise', domain: 'www.codebuddy.cn' }
@@ -14,7 +27,8 @@ it('keeps same-region domain aliases in the same billing scope', () => {
   expect(workBuddyRequestScope(identity)).not.toBe(workBuddyRequestScope({ ...identity, domain: 'www.workbuddy.ai' }))
 })
 
-it('reconciles the selected account before preparing defaults and refuses an old call after a switch', async () => {
+it.each([false, true])('reconciles the selected account and refuses an old call after a switch (profile headers only: %s)', async profileHeadersOnly => {
+  compatibility.profileHeadersOnly = profileHeadersOnly
   const a: WorkBuddyCredential = { uid: 'a', accessToken: 'a-token', refreshToken: '', domain: 'copilot.tencent.com', expiresAtMs: Date.now() + 3600000, source: 'desktop' }
   const b = { ...a, uid: 'b', accessToken: 'b-token' }
   let selected = a; let active = a
