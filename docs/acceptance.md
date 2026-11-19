@@ -52,7 +52,7 @@ dsh-workbuddy-connect-community doctor --share --provider workbuddy-ai
 
 ## Coverage matrix / 覆盖矩阵
 
-Fill one record per tested cell. Every unexecuted cell stays `not-tested`. The declared DSH range is `0.2.1-rc.2`, `0.2.1-rc.3`, `0.2.1-rc.5`, `0.2.2-rc.1`; qualify each release/profile separately. Versions outside it need their own compatibility work before a support claim.
+Fill one record per tested cell. Every unexecuted cell stays `not-tested`. The declared DSH range is `0.2.1-rc.2`, `0.2.1-rc.3`, `0.2.1-rc.5`, `0.2.2-rc.1`, `0.2.2-rc.3`, `0.2.2-rc.5`; qualify each release/profile separately. Versions outside it need their own compatibility work before a support claim.
 
 | Actual machine / 实机 | China `workbuddy` | International `workbuddy-ai` | Required separate evidence / 独立证据 |
 | --- | --- | --- | --- |
