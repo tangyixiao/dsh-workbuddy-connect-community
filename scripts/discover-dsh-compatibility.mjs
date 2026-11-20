@@ -68,8 +68,11 @@ const web = [...new Set(selected)].filter(version => registry.versions[version])
   return { version, digest: createHash('sha256').update(integrity).digest('hex').slice(0, 20) }
 })
 assert(web.length > 0 && (scheduled || missingWeb.length === 0), `Missing Web packages: ${missingWeb.join(', ')}`)
-const desktopJobs = desktop.filter(row => row.version && declared.includes(row.version))
-  .filter(row => scheduled || process.env.DSH_DESKTOP_ALL_CHANNELS === 'true' || row.channel === 'stable')
+const eligibleDesktop = desktop.filter(row => row.version && declared.includes(row.version))
+const stableTargets = new Set(eligibleDesktop.filter(row => row.channel === 'stable').map(row => row.target))
+const allChannels = scheduled || process.env.DSH_DESKTOP_ALL_CHANNELS === 'true'
+const desktopJobs = eligibleDesktop
+  .filter(row => allChannels || row.channel === 'stable' || !stableTargets.has(row.target))
   .map(({ target, channel, version, sha512 }) => ({
     target, channel, version, runner: runners[target],
     digest: createHash('sha256').update(sha512).digest('hex').slice(0, 20),

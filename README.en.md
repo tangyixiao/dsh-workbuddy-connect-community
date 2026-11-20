@@ -36,7 +36,7 @@ Sign in to the matching desktop product. Disable the original `dsh-workbuddy-con
 | --- | --- |
 | Source version | `0.1.26` · see [package.json](package.json) |
 | Distribution | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
-| Declared DSH versions in source | `0.2.1-rc.2`, `0.2.1-rc.3`, `0.2.1-rc.5`, and the five exact versions from `0.2.2-rc.1` through `0.2.2-rc.5` |
+| Declared DSH versions in source | `rc.1` through `rc.5` in both the `0.2.1` and `0.2.2` series, ten exact versions |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |
 | Development | [Open issues](https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues?q=is%3Aissue+is%3Aopen) · [CI](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions) |
 

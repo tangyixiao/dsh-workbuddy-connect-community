@@ -10,7 +10,7 @@ on:
         description: Exact npm DSH version to investigate (blank runs the declared matrix)
         type: string
       desktop_all_channels:
-        description: Test both official Desktop channels (default runs stable)
+        description: Test both official Desktop channels (default prefers stable per target)
         type: boolean
 
 permissions:
