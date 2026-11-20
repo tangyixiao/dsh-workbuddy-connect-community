@@ -27,6 +27,7 @@ const report = { hostVersion, pluginVersion: manifest.version, platform: process
 async function checkBrowser(base, cookie) {
   const { chromium } = await import(pathToFileURL(resolve(process.env.DSH_COMPATIBILITY_PLAYWRIGHT)))
   const browser = await chromium.launch({ executablePath: process.env.DSH_COMPATIBILITY_CHROMIUM })
+  report.browserVersion = browser.version()
   let step = 'open the workspace'
   try {
     const page = await browser.newPage({ locale: 'en-US' })

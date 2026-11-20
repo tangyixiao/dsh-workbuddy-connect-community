@@ -115,11 +115,14 @@ jobs:
           mkdir "$RUNNER_TEMP/dsh-cli"
           printf '{"name":"dsh-compat-host","private":true}\n' > "$RUNNER_TEMP/dsh-cli/package.json"
           pnpm --dir "$RUNNER_TEMP/dsh-cli" add --save-exact --ignore-scripts --registry=https://registry.npmjs.org/ "@deepseek-ai/dsh@$HOST_VERSION"
-      - name: Install the isolated Chromium test runner
+      - name: Set up Playwright with the runner's preinstalled browser
         if: steps.previous.outputs.cache-hit != 'true'
+        timeout-minutes: 2
         run: |
+          browser=$(command -v google-chrome || command -v chromium)
+          "$browser" --version
+          printf 'DSH_COMPATIBILITY_CHROMIUM=%s\n' "$browser" >> "$GITHUB_ENV"
           npm install --prefix "$RUNNER_TEMP/browser" --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/ playwright@1.62.1
-          node "$RUNNER_TEMP/browser/node_modules/playwright/cli.js" install --with-deps --only-shell chromium
       - name: Install and verify Community on DSH Web
         if: steps.previous.outputs.cache-hit != 'true'
         env:
