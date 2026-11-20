@@ -34,13 +34,13 @@
 
 **DSH Desktop**：在「扩展 → 插件管理 → 添加插件」中选择下载的 `.tgz` 文件完成安装或更新。Desktop profile 由桌面应用管理；下面的 CLI 示例用于独立 Web profile。安装后先保持社区版禁用，停用原版 `dsh-workbuddy-connect`，再启用社区版；保留原版及配置以便回退。原版与社区版只能启用一份，避免重复注册 provider。
 
-从 [GitHub 正式发布](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.25) 下载并按 DSH 支持的插件安装方式安装独立包：
+从 [GitHub 正式发布](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.26) 下载并按 DSH 支持的插件安装方式安装独立包：
 
 ```sh
-dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.25/dsh-workbuddy-connect-community-0.1.25.tgz
+dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.26/dsh-workbuddy-connect-community-0.1.26.tgz
 ```
 
-如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。npm 包页面：[0.1.25](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.25)。
+如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。npm 包页面：[0.1.26](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.26)。
 
 ### 与 ZCode 共存
 

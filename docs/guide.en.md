@@ -34,13 +34,13 @@ Use the [compatibility table](../README.en.md#status-and-compatibility) for the 
 
 **DSH Desktop:** use Extensions → Plugin Management → Add Plugin and select the downloaded `.tgz` to install or update it. The desktop app manages its profile; the CLI example below is for a standalone Web profile. Keep the community package disabled after installation, disable the original `dsh-workbuddy-connect`, then enable the community package. Retain the original and its configuration for rollback. Enable only one package to avoid duplicate provider registration.
 
-Download the package from the [GitHub release](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.25) and install it through a DSH-supported plugin method:
+Download the package from the [GitHub release](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.26) and install it through a DSH-supported plugin method:
 
 ```sh
-dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.25/dsh-workbuddy-connect-community-0.1.25.tgz
+dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.26/dsh-workbuddy-connect-community-0.1.26.tgz
 ```
 
-If the original plugin is installed, save its current version and configuration, then replace it through a DSH-supported method. The original and community plugins must not be enabled together: they use the same provider IDs and account login data. If replacement fails, remove the community package and restore the saved original. Do not delete WorkBuddy sign-in data or chat data. npm package page: [0.1.25](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.25).
+If the original plugin is installed, save its current version and configuration, then replace it through a DSH-supported method. The original and community plugins must not be enabled together: they use the same provider IDs and account login data. If replacement fails, remove the community package and restore the saved original. Do not delete WorkBuddy sign-in data or chat data. npm package page: [0.1.26](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.26).
 
 ### Coexistence with ZCode
 

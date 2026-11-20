@@ -25,7 +25,7 @@ Historical upstream screenshot of the model menu; current models, prices and pla
 Desktop: install the release `.tgz` through Extensions → Plugin Management → Add Plugin. For a Web profile you explicitly control:
 
 ```sh
-dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.25
+dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.26
 ```
 
 Sign in to the matching desktop product. Disable the original `dsh-workbuddy-connect` before enabling this community package; they share provider IDs. Use `dsh-workbuddy-connect-community doctor --share` for a redacted diagnostic.
