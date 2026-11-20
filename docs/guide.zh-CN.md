@@ -30,17 +30,17 @@
 
 ## 安装或替换
 
-当前源码为 **0.1.21**，此前正式版为 **0.1.20**，DSH 声明范围为 **`0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5 || 0.2.2-rc.1 || 0.2.2-rc.3`**。其他版本需另行验证；具体发布状态以准确的 Release/npm 版本为准。离线兼容测试不代表真实模型生成验收。插件保留 rc.5 兼容声明，并在模型菜单的“模型”和“推理等级”下方及插件上下文标签页提供上游声明的窗口档位选择。选择按版本、账号和模型保存，直接影响 DSH 的上下文预算；模型不提供档位时不显示选择框。国内 CLI 目录缺少档位时，先使用当前个人账号最近 24 小时内的桌面产品配置；仍缺失时执行一次最多 5 秒的只读桌面配置查询，按模型 ID 和最大输入上限精确匹配，仅补齐档位，不改变 CLI 模型列表。上游已明确声明的档位（包括单档）优先。查询失败时仍显示当前上下文预算及档位暂不可用提示，不提供未经确认的选项。Windows 国内版已通过只读目录核验，返回 16 个模型，已在实际 DSH 界面确认模型列表显示；真实模型生成及 WorkBuddy AI 国际版的实时请求尚未验收。macOS 和 Linux 尚未进行本分叉的实时验证。按 [验收指南](acceptance.md) 为具体版本、平台和产品补充记录。
+当前源码的宿主范围见[兼容性表](../README.md#当前状态与兼容性)，已发布安装包以对应的发行说明为准。真实模型调用单独验收。插件保留 rc.5 兼容声明，并在模型菜单的“模型”和“推理等级”下方及插件上下文标签页提供上游声明的窗口档位选择。选择按版本、账号和模型保存，直接影响 DSH 的上下文预算；模型不提供档位时不显示选择框。国内 CLI 目录缺少档位时，先使用当前个人账号最近 24 小时内的桌面产品配置；仍缺失时执行一次最多 5 秒的只读桌面配置查询，按模型 ID 和最大输入上限精确匹配，仅补齐档位，不改变 CLI 模型列表。上游已明确声明的档位（包括单档）优先。查询失败时仍显示当前上下文预算及档位暂不可用提示，不提供未经确认的选项。Windows 国内版已通过只读目录核验，返回 16 个模型，已在实际 DSH 界面确认模型列表显示；真实模型生成及 WorkBuddy AI 国际版的实时请求尚未验收。macOS 和 Linux 尚未进行本分叉的实时验证。按 [验收指南](acceptance.md) 为具体版本、平台和产品补充记录。
 
 **DSH Desktop**：在「扩展 → 插件管理 → 添加插件」中选择下载的 `.tgz` 文件完成安装或更新。Desktop profile 由桌面应用管理；下面的 CLI 示例用于独立 Web profile。安装后先保持社区版禁用，停用原版 `dsh-workbuddy-connect`，再启用社区版；保留原版及配置以便回退。原版与社区版只能启用一份，避免重复注册 provider。
 
-从 [GitHub 正式发布](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.21) 下载并按 DSH 支持的插件安装方式安装独立包：
+从 [GitHub 正式发布](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/tag/v0.1.25) 下载并按 DSH 支持的插件安装方式安装独立包：
 
 ```sh
-dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.21/dsh-workbuddy-connect-community-0.1.21.tgz
+dsh plugin --profile web add https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases/download/v0.1.25/dsh-workbuddy-connect-community-0.1.25.tgz
 ```
 
-如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。npm 包页面：[0.1.17](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.17)。
+如原版插件已安装，先保存当前版本和配置，再通过 DSH 支持的方式替换为社区版。原版与社区版不能同时启用；两者使用相同的 provider ID 和账号登录数据。失败时卸载社区版并恢复先前保存的原版。不要删除 WorkBuddy 登录信息或聊天数据。npm 包页面：[0.1.25](https://www.npmjs.com/package/dsh-workbuddy-connect-community/v/0.1.25)。
 
 ### 与 ZCode 共存
 

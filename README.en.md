@@ -34,11 +34,13 @@ Sign in to the matching desktop product. Disable the original `dsh-workbuddy-con
 
 | Item | Current source of truth |
 | --- | --- |
-| Source version | `0.1.25` · see [package.json](package.json) |
+| Source version | `0.1.26` · see [package.json](package.json) |
 | Distribution | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
-| DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1 \|\| 0.2.2-rc.3 \|\| 0.2.2-rc.5` |
+| Declared DSH versions in source | `rc.1` through `rc.5` in both the `0.2.1` and `0.2.2` series, ten exact versions |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |
 | Development | [Open issues](https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues?q=is%3Aissue+is%3Aopen) · [CI](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions) |
+
+Check the release notes for the version you install. See [DSH compatibility](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions/workflows/dsh-compatibility.yml) and [maintenance](docs/maintenance.md#dsh-compatibility--dsh-兼容性) for Web test runs and Desktop channel reports.
 
 The `usage.credit` beside a message is an observed value for one upstream response linked to that message. Records live in bounded memory and may disappear; they are not a durable billing ledger or a session total. A separate bounded history retains this plugin’s observed usage, excluding other clients and official account-wide totals. Validate catalogs, local sign-in and live upstream requests separately.
 

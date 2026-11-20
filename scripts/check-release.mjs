@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 // Optional package-directory argument supports disposable malformed fixtures.
 const root = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..'))
 const id = 'dsh-workbuddy-connect-community'
-const hostRange = '0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5 || 0.2.2-rc.1 || 0.2.2-rc.3 || 0.2.2-rc.5'
+const hostRange = '0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5 || 0.2.2-rc.1 || 0.2.2-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.4 || 0.2.2-rc.5'
 const hostPeers = ['attachment', 'client-connection', 'home-paths', 'host-webserver', 'llm', 'llm-pi-ai', 'settings']
 const files = ['lib', 'cordis.patch.yml', 'README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY_NOTICES.txt', 'assets/logo.webp', 'assets/NOTICE.md', 'assets/LICENSE-WHALE-ARTWORK', 'docs', 'CONTRIBUTING.md', 'SUPPORT.md', 'SECURITY.md', 'AGENTS.md']
 const directories = new Set(['lib', 'docs'])

@@ -9,6 +9,18 @@
 - Existing runtime checks remain separate from the repository/documentation checker. Action references are pinned, test jobs have timeouts and stale checks can cancel. Market deployment retains serialized publication.
 - Labels, Discussions, private reporting, topics, security settings and branch rules are platform state. Their source files alone do not prove they are enabled or that a bot has run.
 
+## DSH compatibility / DSH 兼容性
+
+[DSH compatibility](../.github/workflows/dsh-compatibility.yml) checks the packaged plugin against the exact npm versions listed in `engines.dsh` on pull requests. Each Web job uses a disposable profile, installs through the official DSH CLI, checks the provider heartbeat and both signed-out status routes, opens the plugin configuration in Chromium, then removes the plugin and restarts the Host to verify that the routes are gone. The run records the package digest and results. Live WorkBuddy inference requires separate acceptance.
+
+The scheduled run polls GitHub tags and releases, npm and Desktop update feeds every six hours. It reuses passing results for the same source revision and upstream artifact. The Desktop report tracks Windows x64, macOS arm64 and macOS x64 separately by channel, artifact URL and feed digest. Absent feeds and versions outside the declared host range are reported explicitly. Eligible builds run on matching OS runners using the downloaded artifact, a verified SHA-512 digest and the packaged Electron Host. The test starts the actual Host with an isolated Desktop profile, checks the provider and both status routes, disables the plugin and verifies the routes are gone after a restart. PRs prefer stable per target and use nightly when stable has no eligible build. Scheduled runs cover both channels.
+
+历史 Web 版本先在 Actions 手动运行中填入完整的 `web_version`。对照 npm 的实际产物和对应 GitHub 标签，使用同一份 Community 候选包重跑。若宿主的兼容门槛拒绝该版本，在候选分支临时将该精确版本加到 `engines.dsh`、所有 DSH peer 声明及发布校验，更新测试用例，再运行完整检查。通过后才将其纳入支持列表。当前矩阵覆盖 `0.2.1` 与 `0.2.2` 两个系列的 `rc.1` 至 `rc.5`。对更早的宿主，先查可用的旧插件发行包和相应功能，再评估给当前插件增加适配的成本。
+
+Desktop window and updater acceptance uses official installers and a disposable Desktop profile. Exercise both a fresh install and an in-app update from the previous build. In each case install the exact Community archive through Plugin Management, verify both configuration cards, then disable, enable and restart the plugin. For the DSH mode-selector regression, open a new conversation with Coding Tools enabled and disabled, and verify that an existing session preserves its chosen mode. Record the shell and Host versions, OS, architecture, channel, archive digest and outcome for each path. Real model calls are a separate check with an authorized test account.
+
+Desktop 验收应保留安装包、渠道、平台架构和路径（全新安装或应用内升级）的证据。Web 通过可以支持提出 Desktop 验收候选，Desktop 结果以实际 Electron 安装包为准。失败时先确认是插件代码、宿主行为，还是产物或环境问题，再准备对应修复 PR。
+
 ## Release and distribution
 
 The actual delivery type is **npm**. Keep stable and preview versions distinct. Before publishing, verify the exact source, tests, package file list, runtime entries, version, license and notices. Then independently verify the registry/Release artifact, hashes, installation and activation where applicable. Do not publish an empty GitHub Package, container or application just to fill a feature.

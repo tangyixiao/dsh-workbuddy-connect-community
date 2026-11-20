@@ -97,9 +97,10 @@ describe('peer manifest pins the verified DSH cores', () => {
   it('each DSH service peer is an exact, caret-free list of verified cores', () => {
     const pkg = JSON.parse(
       readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
-    ) as { peerDependencies: Record<string, string> }
+    ) as { engines: { dsh: string }, peerDependencies: Record<string, string> }
+    expect(pkg.engines.dsh).toMatch(/^\d+\.\d+\.\d+(?:-rc\.\d+)?(?: \|\| \d+\.\d+\.\d+(?:-rc\.\d+)?)*$/)
     for (const name of DSH_SERVICE_PEERS) {
-      expect(pkg.peerDependencies[name], `${name} missing from peerDependencies`).toBe('0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.5 || 0.2.2-rc.1 || 0.2.2-rc.3 || 0.2.2-rc.5')
+      expect(pkg.peerDependencies[name], `${name} must match engines.dsh`).toBe(pkg.engines.dsh)
     }
   })
 
