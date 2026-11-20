@@ -34,11 +34,13 @@ dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.25
 
 | 项目 | 当前依据 |
 | --- | --- |
-| 源码版本 | `0.1.25` · 以 [package.json](package.json) 为准 |
+| 源码版本 | `0.1.26` · 以 [package.json](package.json) 为准 |
 | 分发方式 | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
-| DSH | `0.2.1-rc.2 \|\| 0.2.1-rc.3 \|\| 0.2.1-rc.5 \|\| 0.2.2-rc.1 \|\| 0.2.2-rc.3 \|\| 0.2.2-rc.5` |
+| DSH 源码兼容声明 | `0.2.1-rc.2`、`0.2.1-rc.3`、`0.2.1-rc.5`、`0.2.2-rc.1` 至 `0.2.2-rc.5` 的五个精确版本 |
 | Node.js | `^22.19.0 \|\| >=24.0.0` |
 | 开发状态 | [Open issues](https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues?q=is%3Aissue+is%3Aopen) · [CI](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions) |
+
+已发布包以对应的发行说明为准。每次 Web 宿主验证及 Desktop 下载渠道的检测记录见 [DSH compatibility](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions/workflows/dsh-compatibility.yml) 与[维护说明](docs/maintenance.md#dsh-compatibility--dsh-兼容性)。
 
 消息旁的 `usage.credit` 仅是已关联到该消息的单次上游响应观测值；记录有内存容量上限，可能消失，不是持久账单或会话总费用。另提供有容量上限的本插件用量留存，与消息旁的短期记录分别处理；不包含其他客户端的官方总消耗。模型目录、登录状态与真实上游请求须分别验证。
 

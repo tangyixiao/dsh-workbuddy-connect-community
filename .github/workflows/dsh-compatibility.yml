@@ -1,0 +1,202 @@
+name: DSH compatibility
+
+on:
+  pull_request:
+  schedule:
+    - cron: '19 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      web_version:
+        description: Exact npm DSH version to investigate (blank runs the declared matrix)
+        type: string
+      desktop_all_channels:
+        description: Test both official Desktop channels (default runs stable)
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    name: Discover official Web and Desktop releases
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      web: ${{ steps.versions.outputs.web }}
+      desktop: ${{ steps.versions.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Read npm, GitHub and Desktop update feeds
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DSH_WEB_VERSION: ${{ inputs.web_version }}
+          DSH_DESKTOP_ALL_CHANNELS: ${{ inputs.desktop_all_channels }}
+          DSH_COMPATIBILITY_REPORT: dsh-versions.json
+        run: node scripts/discover-dsh-compatibility.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dsh-versions
+          path: dsh-versions.json
+          if-no-files-found: error
+          retention-days: 14
+
+  package:
+    name: Package Community for real-host tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build && pnpm run check-release
+      - run: npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: community-compatibility-package
+          path: ${{ runner.temp }}/dsh-workbuddy-connect-community-*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  web:
+    name: Web ${{ matrix.host.version }}
+    needs: [discover, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        host: ${{ fromJSON(needs.discover.outputs.web) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Reuse a successful scheduled test for this build
+        if: github.event_name == 'schedule'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: previous
+        with:
+          path: web-compatibility.json
+          key: dsh-web-test-${{ github.sha }}-${{ matrix.host.version }}-${{ matrix.host.digest }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.previous.outputs.cache-hit != 'true'
+        with:
+          name: community-compatibility-package
+          path: ${{ runner.temp }}/community
+      - name: Install the official Web host
+        if: steps.previous.outputs.cache-hit != 'true'
+        env:
+          HOST_VERSION: ${{ matrix.host.version }}
+        run: |
+          mkdir "$RUNNER_TEMP/dsh-cli"
+          printf '{"name":"dsh-compat-host","private":true}\n' > "$RUNNER_TEMP/dsh-cli/package.json"
+          pnpm --dir "$RUNNER_TEMP/dsh-cli" add --save-exact --ignore-scripts --registry=https://registry.npmjs.org/ "@deepseek-ai/dsh@$HOST_VERSION"
+      - name: Install the isolated Chromium test runner
+        if: steps.previous.outputs.cache-hit != 'true'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/browser" --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/ playwright@1.62.1
+          node "$RUNNER_TEMP/browser/node_modules/playwright/cli.js" install --with-deps --only-shell chromium
+      - name: Install and verify Community on DSH Web
+        if: steps.previous.outputs.cache-hit != 'true'
+        env:
+          HOST_VERSION: ${{ matrix.host.version }}
+          DSH_COMPATIBILITY_REPORT: web-compatibility.json
+          DSH_COMPATIBILITY_PLAYWRIGHT: ${{ runner.temp }}/browser/node_modules/playwright/index.mjs
+        run: node scripts/compatibility-web.mjs "$HOST_VERSION" "$RUNNER_TEMP/dsh-cli/node_modules/@deepseek-ai/dsh/lib/bin.js" "$RUNNER_TEMP"/community/*.tgz
+      - name: Remember a successful scheduled test
+        if: github.event_name == 'schedule' && steps.previous.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: web-compatibility.json
+          key: ${{ steps.previous.outputs.cache-primary-key }}
+      - name: Save Web compatibility report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-compatibility-${{ matrix.host.version }}
+          path: web-compatibility.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  desktop:
+    name: Desktop Host ${{ matrix.host.target }} ${{ matrix.host.channel }} ${{ matrix.host.version }}
+    needs: [discover, package]
+    if: needs.discover.outputs.desktop != '[]'
+    runs-on: ${{ matrix.host.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        host: ${{ fromJSON(needs.discover.outputs.desktop) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Reuse a successful scheduled test for this build
+        if: github.event_name == 'schedule'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: previous
+        with:
+          path: desktop-compatibility.json
+          key: dsh-desktop-test-${{ github.sha }}-${{ matrix.host.target }}-${{ matrix.host.channel }}-${{ matrix.host.digest }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.previous.outputs.cache-hit != 'true'
+        with:
+          name: dsh-versions
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.previous.outputs.cache-hit != 'true'
+        with:
+          name: community-compatibility-package
+          path: ${{ runner.temp }}/community
+      - name: Verify and smoke-test the packaged Desktop Host
+        if: steps.previous.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.host.target }}
+          CHANNEL: ${{ matrix.host.channel }}
+          DSH_COMPATIBILITY_REPORT: desktop-compatibility.json
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          node scripts/compatibility-desktop-artifact.mjs dsh-versions.json "$TARGET" "$CHANNEL" "$RUNNER_TEMP/community/dsh-workbuddy-connect-community-${version}.tgz"
+      - name: Remember a successful scheduled test
+        if: github.event_name == 'schedule' && steps.previous.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: desktop-compatibility.json
+          key: ${{ steps.previous.outputs.cache-primary-key }}
+      - name: Save Desktop compatibility report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-compatibility-${{ matrix.host.target }}-${{ matrix.host.channel }}
+          path: desktop-compatibility.json
+          if-no-files-found: ignore
+          retention-days: 14
