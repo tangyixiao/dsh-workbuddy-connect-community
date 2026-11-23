@@ -14,10 +14,16 @@ concurrency:
 
 jobs:
   check:
+    name: check (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest, macos-15-intel]
+        include:
+          - os: windows-latest
+            node: '22.22.2'
+          - os: macos-latest
+            node: '24.15.0'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
@@ -29,7 +35,7 @@ jobs:
           version: 10
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ matrix.node || '24' }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - if: runner.os == 'Linux'
