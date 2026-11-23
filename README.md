@@ -37,7 +37,7 @@ dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.26
 | 源码版本 | `0.1.26` · 以 [package.json](package.json) 为准 |
 | 分发方式 | `npm` · [Releases](https://github.com/tangyixiao/dsh-workbuddy-connect-community/releases) |
 | DSH 源码兼容声明 | `0.2.1` 和 `0.2.2` 各自的 `rc.1` 至 `rc.5`，共十个精确版本 |
-| Node.js | `^22.19.0 \|\| >=24.0.0` |
+| 宿主 Node.js | `^22.19.0 \|\| >=24.0.0` |
 | 开发状态 | [Open issues](https://github.com/tangyixiao/dsh-workbuddy-connect-community/issues?q=is%3Aissue+is%3Aopen) · [CI](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions) |
 
 已发布包以对应的发行说明为准。每次 Web 宿主验证及 Desktop 下载渠道的检测记录见 [DSH compatibility](https://github.com/tangyixiao/dsh-workbuddy-connect-community/actions/workflows/dsh-compatibility.yml) 与[维护说明](docs/maintenance.md#dsh-compatibility--dsh-兼容性)。
@@ -49,6 +49,8 @@ dsh plugin --profile web add dsh-workbuddy-connect-community@0.1.26
 [账号额度、用量留存与签到结果](docs/accounts-and-usage.md) · [详细使用、配置与故障排查](docs/guide.zh-CN.md) · [逐项验收](docs/acceptance.md) · [功能路线与前置条件](docs/roadmap.md)
 
 ## 开发与参与
+
+从源码运行检查需要 pnpm 10。Node.js 22.x 至少需要 22.22.2，24.x 至少需要 24.15.0。
 
 ```sh
 pnpm install --frozen-lockfile

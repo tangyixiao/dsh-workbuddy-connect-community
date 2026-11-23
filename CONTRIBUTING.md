@@ -4,6 +4,10 @@ Use [Issues](https://github.com/tangyixiao/dsh-workbuddy-connect-community/issue
 
 ## Check a change
 
+Use pnpm 10 and a current Node.js 22.x or 24.x patch to run the checks. The jsdom UI tests require at least 22.22.2 on Node 22 or 24.15.0 on Node 24. The offline CI matrix exercises both minimum versions. The published plugin's DSH host requirements are listed in the README.
+
+本地检查使用 pnpm 10，建议安装 Node.js 22.x 或 24.x 的最新补丁。运行 jsdom 界面测试时，Node 22 至少需要 22.22.2，Node 24 至少需要 24.15.0。离线 CI 会分别测试这两个最低版本。已发布插件的 DSH 宿主要求见 README。
+
 ```sh
 pnpm install --frozen-lockfile
 pnpm run check
